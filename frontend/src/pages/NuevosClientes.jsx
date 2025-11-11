@@ -18,7 +18,7 @@ export default function NuevosClientes() {
         </h1>
         
         <div className="bg-white shadow-lg rounded-lg p-6">
-          {/* Aquí irá el formulario de registro */}
+          
           <p className="text-gray-600">Formulario de registro de clientes</p>
         </div>
       </div>

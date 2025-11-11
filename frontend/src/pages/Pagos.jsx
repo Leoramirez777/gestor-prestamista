@@ -18,7 +18,7 @@ export default function Pagos() {
         </h1>
         
         <div className="bg-white shadow-lg rounded-lg p-6">
-          {/* Aquí irá el contenido de pagos */}
+          
           <p className="text-gray-600">Registro de pagos</p>
         </div>
       </div>

@@ -18,7 +18,7 @@ export default function NuevosPrestamos() {
         </h1>
         
         <div className="bg-white shadow-lg rounded-lg p-6">
-          {/* Aquí irá el formulario de nuevo préstamo */}
+          
           <p className="text-gray-600">Formulario de nuevo préstamo</p>
         </div>
       </div>
