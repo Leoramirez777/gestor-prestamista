@@ -5,6 +5,7 @@ import App from './App.jsx'
 import './index.css'
 
 import Clientes from './pages/clientes.jsx'
+import PerfilCliente from './pages/PerfilCliente.jsx'
 import NuevosClientes from './pages/NuevosClientes.jsx'
 import Prestamos from './pages/Prestamos.jsx'
 import NuevosPrestamos from './pages/NuevosPrestamos.jsx'
@@ -16,6 +17,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="clientes" element={<Clientes />} />
+        <Route path="clientes/:id" element={<PerfilCliente />} />
         <Route path="nuevos-clientes" element={<NuevosClientes />} />
         <Route path="prestamos" element={<Prestamos />} />
         <Route path="nuevos-prestamos" element={<NuevosPrestamos />} />
