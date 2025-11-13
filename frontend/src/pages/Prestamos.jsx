@@ -1,25 +1,26 @@
 import { useNavigate } from 'react-router-dom';
+import '../styles/Prestamos.css';
 
 export default function Prestamos() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="prestamos-container">
       <button
         onClick={() => navigate('/')}
-        className="mb-8 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-white"
+        className="prestamos-back-button"
       >
         ← Volver al Menú
       </button>
       
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-800 mb-8">
+      <div className="prestamos-content">
+        <h1 className="prestamos-title">
           Gestión de Préstamos
         </h1>
         
-        <div className="bg-white shadow-lg rounded-lg p-6">
+        <div className="prestamos-card">
           {/* Aquí irá el contenido de préstamos */}
-          <p className="text-gray-600">Lista de préstamos activos</p>
+          <p className="prestamos-text">Lista de préstamos activos</p>
         </div>
       </div>
     </div>

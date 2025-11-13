@@ -1,0 +1,48 @@
+/* PerfilCliente.css */
+
+.perfil-title {
+  color: #10b981;
+}
+
+.perfil-back-button {
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.perfil-back-button:hover {
+  background-color: #10b981;
+  color: white;
+}
+
+.perfil-spinner {
+  color: #10b981;
+}
+
+.perfil-card {
+  border-color: #10b981;
+}
+
+.perfil-card-header {
+  background-color: #10b981;
+  color: white;
+}
+
+.perfil-avatar {
+  width: 80px;
+  height: 80px;
+  background-color: #10b98140;
+  color: #10b981;
+}
+
+.perfil-save-button {
+  background-color: #10b981;
+  color: white;
+}
+
+.perfil-accordion-expanded {
+  background-color: #f0fdf4;
+}
+
+.perfil-accordion-collapsed {
+  background-color: white;
+}

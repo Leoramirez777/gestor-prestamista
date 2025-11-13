@@ -1,25 +1,26 @@
 import { useNavigate } from 'react-router-dom';
+import '../styles/NuevosPrestamos.css';
 
 export default function NuevosPrestamos() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="nuevos-prestamos-container">
       <button
         onClick={() => navigate('/')}
-        className="mb-8 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-white"
+        className="nuevos-prestamos-back-button"
       >
         ← Volver al Menú
       </button>
       
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-800 mb-8">
+      <div className="nuevos-prestamos-content">
+        <h1 className="nuevos-prestamos-title">
           Nuevo Préstamo
         </h1>
         
-        <div className="bg-white shadow-lg rounded-lg p-6">
+        <div className="nuevos-prestamos-card">
           
-          <p className="text-gray-600">Formulario de nuevo préstamo</p>
+          <p className="nuevos-prestamos-text">Formulario de nuevo préstamo</p>
         </div>
       </div>
     </div>

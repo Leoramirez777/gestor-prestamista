@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { fetchCliente } from "../api/clientes";
+import { fetchCliente, updateCliente } from "../api/clientes";
 import { fetchPrestamosByCliente } from "../api/prestamos";
 import { fetchPagosByPrestamo } from "../api/pagos";
+import "../styles/PerfilCliente.css";
 
 const PerfilCliente = () => {
   const { id } = useParams();
@@ -15,6 +16,8 @@ const PerfilCliente = () => {
   const [prestamoExpandido, setPrestamoExpandido] = useState(null);
   const [pagos, setPagos] = useState({});
   const [modoEdicion, setModoEdicion] = useState(false);
+  const [formData, setFormData] = useState({ nombre: "", dni: "", telefono: "", email: "", direccion: "" });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -78,11 +81,43 @@ const PerfilCliente = () => {
     );
   };
 
+  const startEdit = () => {
+    if (!cliente) return;
+    setFormData({
+      nombre: cliente.nombre || "",
+      dni: cliente.dni || "",
+      telefono: cliente.telefono || "",
+      email: cliente.email || "",
+      direccion: cliente.direccion || "",
+    });
+    setModoEdicion(true);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      const updated = await updateCliente(cliente.id, formData);
+      setCliente(updated);
+      setModoEdicion(false);
+    } catch (err) {
+      console.error("Error al actualizar cliente:", err);
+      alert(err.message || "No se pudo actualizar el cliente");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container my-5">
         <div className="text-center my-5">
-          <div className="spinner-border" style={{ color: '#10b981' }} role="status">
+          <div className="spinner-border perfil-spinner" role="status">
             <span className="visually-hidden">Cargando...</span>
           </div>
         </div>
@@ -110,14 +145,11 @@ const PerfilCliente = () => {
     <div className="container my-5">
       {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1 className="fw-bold mb-0" style={{ color: '#10b981' }}>
+        <h1 className="fw-bold mb-0 perfil-title">
           Perfil del Cliente
         </h1>
         <button
-          className="btn fw-semibold"
-          style={{ borderColor: '#10b981', color: '#10b981' }}
-          onMouseEnter={(e) => { e.target.style.backgroundColor = '#10b981'; e.target.style.color = 'white'; }}
-          onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; e.target.style.color = '#10b981'; }}
+          className="btn fw-semibold perfil-back-button"
           onClick={() => navigate('/clientes')}
         >
           ← Volver a Clientes
@@ -125,62 +157,111 @@ const PerfilCliente = () => {
       </div>
 
       {/* Datos Personales */}
-      <div className="card shadow-sm mb-4" style={{ borderColor: '#10b981' }}>
-        <div className="card-header d-flex justify-content-between align-items-center" style={{ backgroundColor: '#10b981', color: 'white' }}>
+      <div className="card shadow-sm mb-4 perfil-card">
+        <div className="card-header d-flex justify-content-between align-items-center perfil-card-header">
           <h4 className="mb-0">Datos Personales</h4>
           <button
             className="btn btn-light btn-sm"
-            onClick={() => setModoEdicion(!modoEdicion)}
+            onClick={() => (modoEdicion ? setModoEdicion(false) : startEdit())}
           >
             {modoEdicion ? '✕ Cancelar' : ' Editar'}
           </button>
         </div>
         <div className="card-body">
-          <div className="row">
-            <div className="col-md-6 mb-3">
-              <div className="d-flex align-items-center mb-4">
-                <div
-                  className="rounded-circle fw-bold fs-1 d-flex align-items-center justify-content-center me-3"
-                  style={{ width: "80px", height: "80px", backgroundColor: '#10b98140', color: '#10b981' }}
-                >
-                  {cliente.nombre[0]}
-                </div>
-                <div>
-                  <h3 className="mb-0">{cliente.nombre}</h3>
-                  <small className="text-muted">ID: {cliente.id}</small>
+          {modoEdicion ? (
+            <form onSubmit={handleSave}>
+              <div className="row">
+                <div className="col-md-6 mb-3">
+                  <div className="d-flex align-items-center mb-4">
+                    <div className="rounded-circle fw-bold fs-1 d-flex align-items-center justify-content-center me-3 perfil-avatar">
+                      {formData.nombre?.[0] || cliente.nombre[0]}
+                    </div>
+                    <div>
+                      <h3 className="mb-0">Editar datos</h3>
+                      <small className="text-muted">ID: {cliente.id}</small>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-          
-          <div className="row">
-            <div className="col-md-6 mb-3">
-              <label className="text-muted small">DNI</label>
-              <p className="fs-5 mb-0">{cliente.dni || 'No registrado'}</p>
-            </div>
-            <div className="col-md-6 mb-3">
-              <label className="text-muted small">Teléfono</label>
-              <p className="fs-5 mb-0">{cliente.telefono}</p>
-            </div>
-            <div className="col-md-6 mb-3">
-              <label className="text-muted small">Email</label>
-              <p className="fs-5 mb-0">{cliente.email || 'No registrado'}</p>
-            </div>
-            <div className="col-md-6 mb-3">
-              <label className="text-muted small">Fecha de registro</label>
-              <p className="fs-5 mb-0">{formatDate(cliente.created_at)}</p>
-            </div>
-            <div className="col-md-12 mb-3">
-              <label className="text-muted small">Dirección</label>
-              <p className="fs-5 mb-0">{cliente.direccion || 'No registrada'}</p>
-            </div>
-          </div>
+
+              <div className="row">
+                <div className="col-md-6 mb-3">
+                  <label className="form-label">Nombre</label>
+                  <input className="form-control" name="nombre" value={formData.nombre} onChange={handleChange} required />
+                </div>
+                <div className="col-md-6 mb-3">
+                  <label className="form-label">DNI</label>
+                  <input className="form-control" name="dni" value={formData.dni} onChange={handleChange} />
+                </div>
+                <div className="col-md-6 mb-3">
+                  <label className="form-label">Teléfono</label>
+                  <input className="form-control" name="telefono" value={formData.telefono} onChange={handleChange} required />
+                </div>
+                <div className="col-md-6 mb-3">
+                  <label className="form-label">Email</label>
+                  <input className="form-control" type="email" name="email" value={formData.email} onChange={handleChange} />
+                </div>
+                <div className="col-md-12 mb-3">
+                  <label className="form-label">Dirección</label>
+                  <input className="form-control" name="direccion" value={formData.direccion} onChange={handleChange} />
+                </div>
+              </div>
+
+              <div className="d-flex gap-2">
+                <button type="submit" className="btn perfil-save-button" disabled={saving}>
+                  {saving ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+                <button type="button" className="btn btn-outline-secondary" onClick={() => setModoEdicion(false)}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <div className="row">
+                <div className="col-md-6 mb-3">
+                  <div className="d-flex align-items-center mb-4">
+                    <div className="rounded-circle fw-bold fs-1 d-flex align-items-center justify-content-center me-3 perfil-avatar">
+                      {cliente.nombre[0]}
+                    </div>
+                    <div>
+                      <h3 className="mb-0">{cliente.nombre}</h3>
+                      <small className="text-muted">ID: {cliente.id}</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="col-md-6 mb-3">
+                  <label className="text-muted small">DNI</label>
+                  <p className="fs-5 mb-0">{cliente.dni || 'No registrado'}</p>
+                </div>
+                <div className="col-md-6 mb-3">
+                  <label className="text-muted small">Teléfono</label>
+                  <p className="fs-5 mb-0">{cliente.telefono}</p>
+                </div>
+                <div className="col-md-6 mb-3">
+                  <label className="text-muted small">Email</label>
+                  <p className="fs-5 mb-0">{cliente.email || 'No registrado'}</p>
+                </div>
+                <div className="col-md-6 mb-3">
+                  <label className="text-muted small">Fecha de registro</label>
+                  <p className="fs-5 mb-0">{formatDate(cliente.created_at)}</p>
+                </div>
+                <div className="col-md-12 mb-3">
+                  <label className="text-muted small">Dirección</label>
+                  <p className="fs-5 mb-0">{cliente.direccion || 'No registrada'}</p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {/* Historial de Préstamos */}
-      <div className="card shadow-sm" style={{ borderColor: '#10b981' }}>
-        <div className="card-header" style={{ backgroundColor: '#10b981', color: 'white' }}>
+      <div className="card shadow-sm perfil-card">
+        <div className="card-header perfil-card-header">
           <h4 className="mb-0">Historial de Préstamos ({prestamos.length})</h4>
         </div>
         <div className="card-body">
@@ -195,7 +276,6 @@ const PerfilCliente = () => {
                       className={`accordion-button ${prestamoExpandido === prestamo.id ? '' : 'collapsed'}`}
                       type="button"
                       onClick={() => togglePrestamo(prestamo.id)}
-                      style={{ backgroundColor: prestamoExpandido === prestamo.id ? '#f0fdf4' : 'white' }}
                     >
                       <div className="d-flex justify-content-between align-items-center w-100 me-3">
                         <div>

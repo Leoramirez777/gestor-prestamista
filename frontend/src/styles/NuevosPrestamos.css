@@ -1,0 +1,42 @@
+/* NuevosPrestamos.css */
+
+.nuevos-prestamos-container {
+  min-height: 100vh;
+  background-color: white;
+  padding: 2rem;
+}
+
+.nuevos-prestamos-back-button {
+  margin-bottom: 2rem;
+  padding: 0.5rem 1rem;
+  background-color: #10b981;
+  border-radius: 0.5rem;
+  color: white;
+}
+
+.nuevos-prestamos-back-button:hover {
+  background-color: #059669;
+}
+
+.nuevos-prestamos-content {
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.nuevos-prestamos-title {
+  font-size: 2.25rem;
+  font-weight: bold;
+  color: #1f2937;
+  margin-bottom: 2rem;
+}
+
+.nuevos-prestamos-card {
+  background-color: white;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+
+.nuevos-prestamos-text {
+  color: #4b5563;
+}

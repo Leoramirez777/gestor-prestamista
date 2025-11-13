@@ -1,0 +1,44 @@
+/* clientes.css */
+
+.clientes-title {
+  color: #000000ff;
+}
+
+.clientes-back-button {
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.clientes-back-button:hover {
+  background-color: #10b981;
+  color: white;
+}
+
+.clientes-spinner {
+  color: #10b981;
+}
+
+.cliente-card {
+  border-color: #10b981;
+}
+
+.cliente-avatar {
+  width: 60px;
+  height: 60px;
+  background-color: #10b98140;
+  color: #10b981;
+}
+
+.cliente-name {
+  color: #000000;
+}
+
+.cliente-prestamo-activo {
+  background-color: #10b981;
+}
+
+.cliente-ver-perfil {
+  background-color: #10b981;
+  color: white;
+  border: none;
+}

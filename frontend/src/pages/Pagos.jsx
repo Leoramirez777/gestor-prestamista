@@ -1,25 +1,26 @@
 import { useNavigate } from 'react-router-dom';
+import '../styles/Pagos.css';
 
 export default function Pagos() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-white p-8">
+    <div className="pagos-container">
       <button
         onClick={() => navigate('/')}
-        className="mb-8 px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-white"
+        className="pagos-back-button"
       >
         ← Volver al Menú
       </button>
       
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-800 mb-8">
+      <div className="pagos-content">
+        <h1 className="pagos-title">
           Gestión de Pagos
         </h1>
         
-        <div className="bg-white shadow-lg rounded-lg p-6">
+        <div className="pagos-card">
           
-          <p className="text-gray-600">Registro de pagos</p>
+          <p className="pagos-text">Registro de pagos</p>
         </div>
       </div>
     </div>

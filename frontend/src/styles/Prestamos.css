@@ -1,0 +1,42 @@
+/* Prestamos.css */
+
+.prestamos-container {
+  min-height: 100vh;
+  background-color: white;
+  padding: 2rem;
+}
+
+.prestamos-back-button {
+  margin-bottom: 2rem;
+  padding: 0.5rem 1rem;
+  background-color: #10b981;
+  border-radius: 0.5rem;
+  color: white;
+}
+
+.prestamos-back-button:hover {
+  background-color: #059669;
+}
+
+.prestamos-content {
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.prestamos-title {
+  font-size: 2.25rem;
+  font-weight: bold;
+  color: #1f2937;
+  margin-bottom: 2rem;
+}
+
+.prestamos-card {
+  background-color: white;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+}
+
+.prestamos-text {
+  color: #4b5563;
+}
