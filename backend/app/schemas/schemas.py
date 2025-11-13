@@ -5,6 +5,7 @@ from datetime import date, datetime
 # ===== CLIENTES =====
 class ClienteBase(BaseModel):
     nombre: str
+    dni: Optional[str] = None
     telefono: str
     direccion: Optional[str] = None
     email: Optional[str] = None
@@ -14,6 +15,7 @@ class ClienteCreate(ClienteBase):
 
 class ClienteUpdate(BaseModel):
     nombre: Optional[str] = None
+    dni: Optional[str] = None
     telefono: Optional[str] = None
     direccion: Optional[str] = None
     email: Optional[str] = None
