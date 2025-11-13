@@ -2,7 +2,7 @@ import { api, handleApiError } from './client';
 
 export async function fetchPagos({ skip = 0, limit = 100 } = {}) {
   try {
-    const { data } = await api.get('/api/pagos', { params: { skip, limit } });
+    const { data } = await api.get('/api/pagos/', { params: { skip, limit } });
     return data;
   } catch (err) {
     handleApiError(err);
@@ -29,7 +29,7 @@ export async function fetchPagosByPrestamo(prestamoId) {
 
 export async function createPago(payload) {
   try {
-    const { data } = await api.post('/api/pagos', payload);
+    const { data } = await api.post('/api/pagos/', payload);
     return data;
   } catch (err) {
     handleApiError(err);

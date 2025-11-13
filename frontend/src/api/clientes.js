@@ -20,7 +20,7 @@ export async function fetchCliente(id) {
 
 export async function createCliente(payload) {
   try {
-    const { data } = await api.post('/api/clientes', payload);
+    const { data } = await api.post('/api/clientes/', payload);
     return data;
   } catch (err) {
     handleApiError(err);
