@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import App from './App.jsx'
+import ErrorBoundary from './ErrorBoundary.jsx'
 import './index.css'
 
 import Clientes from './pages/clientes.jsx'
@@ -13,19 +14,21 @@ import Pagos from './pages/Pagos.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="clientes" element={<Clientes />} />
-        <Route path="clientes/:id" element={<PerfilCliente />} />
-        <Route path="nuevos-clientes" element={<NuevosClientes />} />
-        <Route path="prestamos" element={<Prestamos />} />
-        <Route path="nuevos-prestamos" element={<NuevosPrestamos />} />
-        <Route path="pagos" element={<Pagos />} />
-        <Route path="pagos-atrasados" element={<Pagos />} />
-        <Route path="resumen" element={<Pagos />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<App />} />
+          <Route path="/clientes" element={<Clientes />} />
+          <Route path="/clientes/:id" element={<PerfilCliente />} />
+          <Route path="/nuevos-clientes" element={<NuevosClientes />} />
+          <Route path="/prestamos" element={<Prestamos />} />
+          <Route path="/nuevos-prestamos" element={<NuevosPrestamos />} />
+          <Route path="/pagos" element={<Pagos />} />
+          <Route path="/pagos-atrasados" element={<Pagos />} />
+          <Route path="/resumen" element={<Pagos />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

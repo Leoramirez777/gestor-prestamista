@@ -8,11 +8,12 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "API REST construida con FastAPI y SQLAlchemy para gestionar préstamos, clientes y pagos.",
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "mongoose": "^8.19.3",
     "mysql2": "^3.15.3"
   }
 }
