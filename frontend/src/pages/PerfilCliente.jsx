@@ -315,19 +315,30 @@ const PerfilCliente = () => {
                       </div>
                       
                       <div className="row mb-3">
-                        <div className="col-md-4">
+                        <div className="col-md-3">
                           <label className="text-muted small">Saldo Pendiente</label>
                           <p className="fs-5 fw-bold text-danger mb-0">
                             {formatCurrency(prestamo.saldo_pendiente)}
                           </p>
                         </div>
-                        <div className="col-md-4">
+                        <div className="col-md-3">
                           <label className="text-muted small">Plazo</label>
                           <p className="fs-5 mb-0">{prestamo.plazo_dias} días</p>
                         </div>
-                        <div className="col-md-4">
+                        <div className="col-md-3">
+                          <label className="text-muted small">Frecuencia de Pago</label>
+                          <p className="fs-5 mb-0 text-capitalize">{prestamo.frecuencia_pago || 'semanal'}</p>
+                        </div>
+                        <div className="col-md-3">
                           <label className="text-muted small">Fecha de Vencimiento</label>
                           <p className="fs-5 mb-0">{formatDate(prestamo.fecha_vencimiento)}</p>
+                        </div>
+                      </div>
+
+                      <div className="row mb-3">
+                        <div className="col-md-4">
+                          <label className="text-muted small">Fecha de Creación</label>
+                          <p className="fs-5 mb-0">{formatDate(prestamo.created_at)}</p>
                         </div>
                       </div>
 

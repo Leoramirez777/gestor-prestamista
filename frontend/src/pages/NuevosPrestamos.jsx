@@ -11,7 +11,8 @@ export default function NuevosPrestamos() {
     cliente_id: '',
     monto: '',
     tasa_interes: '',
-    plazo_dias: ''
+    plazo_dias: '',
+    frecuencia_pago: 'semanal'
   });
   const [loading, setLoading] = useState(false);
   const [loadingClientes, setLoadingClientes] = useState(true);
@@ -44,6 +45,22 @@ export default function NuevosPrestamos() {
     }));
   };
 
+  const handleMontoChange = (e) => {
+    // Remover puntos y formatear solo números
+    const value = e.target.value.replace(/\./g, '');
+    if (value === '' || /^\d+$/.test(value)) {
+      setFormData(prev => ({
+        ...prev,
+        monto: value
+      }));
+    }
+  };
+
+  const formatearMonto = (valor) => {
+    if (!valor) return '';
+    return valor.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
   const calcularMontoTotal = () => {
     const monto = parseFloat(formData.monto) || 0;
     const tasa = parseFloat(formData.tasa_interes) || 0;
@@ -60,13 +77,22 @@ export default function NuevosPrestamos() {
     setMensaje({ tipo: '', texto: '' });
 
     try {
+      // Calcular plazo_dias según la frecuencia
+      let plazo_dias;
+      if (formData.frecuencia_pago === 'semanal') {
+        plazo_dias = parseInt(formData.plazo_dias) * 7; // semanas a días
+      } else {
+        plazo_dias = parseInt(formData.plazo_dias) * 30; // meses a días (aproximado)
+      }
+
       // Preparar datos del préstamo
       const prestamoData = {
         cliente_id: parseInt(formData.cliente_id),
         monto: parseFloat(formData.monto),
         tasa_interes: parseFloat(formData.tasa_interes),
-        plazo_dias: parseInt(formData.plazo_dias),
-        fecha_inicio: new Date().toISOString().split('T')[0] // Fecha actual
+        plazo_dias: plazo_dias,
+        fecha_inicio: new Date().toISOString().split('T')[0], // Fecha actual
+        frecuencia_pago: formData.frecuencia_pago
       };
 
       console.log('Enviando datos de préstamo:', prestamoData);
@@ -83,7 +109,8 @@ export default function NuevosPrestamos() {
         cliente_id: '',
         monto: '',
         tasa_interes: '',
-        plazo_dias: ''
+        plazo_dias: '',
+        frecuencia_pago: 'semanal'
       });
       
       // Redirigir después de un tiempo
@@ -126,7 +153,7 @@ export default function NuevosPrestamos() {
     <div className="container my-5">
       {/* Header con botón de regreso */}
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1 className="fw-bold text-dark">💰 Nuevo Préstamo</h1>
+        <h1 className="fw-bold text-dark">Nuevo Préstamo</h1>
         <button
           className="btn btn-outline-secondary"
           onClick={() => navigate('/')}
@@ -193,17 +220,52 @@ export default function NuevosPrestamos() {
                     <div className="input-group">
                       <span className="input-group-text">$</span>
                       <input
-                        type="number"
+                        type="text"
                         className="form-control"
                         id="monto"
                         name="monto"
-                        value={formData.monto}
+                        value={formatearMonto(formData.monto)}
+                        onChange={handleMontoChange}
+                        required
+                        placeholder="100.000"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label htmlFor="frecuencia_pago" className="form-label">Frecuencia de Pago *</label>
+                    <select
+                      className="form-select"
+                      id="frecuencia_pago"
+                      name="frecuencia_pago"
+                      value={formData.frecuencia_pago}
+                      onChange={handleChange}
+                      required
+                    >
+                      <option value="semanal">Semanal</option>
+                      <option value="mensual">Mensual</option>
+                    </select>
+                  </div>
+
+                  <div className="col-md-6 mb-3">
+                    <label htmlFor="plazo_dias" className="form-label">Plazo *</label>
+                    <div className="input-group">
+                      <input
+                        type="number"
+                        className="form-control"
+                        id="plazo_dias"
+                        name="plazo_dias"
+                        value={formData.plazo_dias}
                         onChange={handleChange}
                         required
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
+                        min="1"
+                        placeholder={formData.frecuencia_pago === 'semanal' ? '4' : '1'}
                       />
+                      <span className="input-group-text">
+                        {formData.frecuencia_pago === 'semanal' ? 'semanas' : 'meses'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -227,30 +289,12 @@ export default function NuevosPrestamos() {
                       <span className="input-group-text">%</span>
                     </div>
                   </div>
-                  
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="plazo_dias" className="form-label">Plazo *</label>
-                    <div className="input-group">
-                      <input
-                        type="number"
-                        className="form-control"
-                        id="plazo_dias"
-                        name="plazo_dias"
-                        value={formData.plazo_dias}
-                        onChange={handleChange}
-                        required
-                        min="1"
-                        placeholder="30"
-                      />
-                      <span className="input-group-text">días</span>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Resumen del préstamo */}
-                {formData.monto && formData.tasa_interes && (
+                {formData.monto && formData.tasa_interes && formData.plazo_dias && (
                   <div className="alert alert-info">
-                    <h6 className="fw-bold">📊 Resumen del Préstamo:</h6>
+                    <h6 className="fw-bold">Resumen del Préstamo:</h6>
                     <div className="row">
                       <div className="col-sm-6">
                         <strong>Monto prestado:</strong> ${parseFloat(formData.monto || 0).toFixed(2)}
@@ -264,7 +308,19 @@ export default function NuevosPrestamos() {
                         <strong>Interés:</strong> ${(calcularMontoTotal() - parseFloat(formData.monto || 0)).toFixed(2)}
                       </div>
                       <div className="col-sm-6">
-                        <strong>Plazo:</strong> {formData.plazo_dias} días
+                        <strong>Plazo:</strong> {formData.plazo_dias} {formData.frecuencia_pago === 'semanal' ? 'semanas' : 'meses'}
+                      </div>
+                    </div>
+                    <div className="row">
+                      <div className="col-sm-6">
+                        <strong>Fecha de vencimiento:</strong> {(() => {
+                          const dias = formData.frecuencia_pago === 'semanal' 
+                            ? parseInt(formData.plazo_dias) * 7 
+                            : parseInt(formData.plazo_dias) * 30;
+                          const fechaVencimiento = new Date();
+                          fechaVencimiento.setDate(fechaVencimiento.getDate() + dias);
+                          return fechaVencimiento.toLocaleDateString('es-ES');
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -283,7 +339,7 @@ export default function NuevosPrestamos() {
                         Creando...
                       </>
                     ) : (
-                      '💰 Crear Préstamo'
+                      'Crear Préstamo'
                     )}
                   </button>
                   
@@ -295,12 +351,13 @@ export default function NuevosPrestamos() {
                         cliente_id: '',
                         monto: '',
                         tasa_interes: '',
-                        plazo_dias: ''
+                        plazo_dias: '',
+                        frecuencia_pago: 'semanal'
                       });
                       setMensaje({ tipo: '', texto: '' });
                     }}
                   >
-                    🗑️ Limpiar
+                     Limpiar
                   </button>
                 </div>
               </form>

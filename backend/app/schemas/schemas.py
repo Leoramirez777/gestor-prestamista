@@ -35,6 +35,7 @@ class PrestamoBase(BaseModel):
     tasa_interes: float
     plazo_dias: int
     fecha_inicio: date
+    frecuencia_pago: Optional[str] = "semanal"  # semanal o mensual
 
 class PrestamoCreate(PrestamoBase):
     pass

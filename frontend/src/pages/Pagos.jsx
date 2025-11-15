@@ -166,13 +166,13 @@ export default function Pagos() {
     <div className="container my-5">
       {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1 className="fw-bold text-dark">💵 Gestión de Pagos</h1>
+        <h1 className="fw-bold text-dark">Gestión de Pagos</h1>
         <div className="d-flex gap-2">
           <button
             className="btn btn-success"
             onClick={() => setShowModal(true)}
           >
-            ➕ Registrar Pago
+            Registrar Pago
           </button>
           <button
             className="btn btn-outline-secondary"
@@ -237,7 +237,7 @@ export default function Pagos() {
             className="btn btn-success"
             onClick={() => setShowModal(true)}
           >
-            ➕ Registrar Primer Pago
+            Registrar Primer Pago
           </button>
         </div>
       ) : (
@@ -319,7 +319,7 @@ export default function Pagos() {
           <div className="modal-dialog">
             <div className="modal-content">
               <div className="modal-header">
-                <h5 className="modal-title">💵 Registrar Nuevo Pago</h5>
+                <h5 className="modal-title">Registrar Nuevo Pago</h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -382,9 +382,9 @@ export default function Pagos() {
                       onChange={handleFormChange}
                       required
                     >
-                      <option value="efectivo">💵 Efectivo</option>
-                      <option value="transferencia">🏦 Transferencia</option>
-                      <option value="cheque">📝 Cheque</option>
+                      <option value="efectivo">Efectivo</option>
+                      <option value="transferencia">Transferencia</option>
+                      <option value="cheque">Cheque</option>
                       <option value="tarjeta">💳 Tarjeta</option>
                     </select>
                   </div>

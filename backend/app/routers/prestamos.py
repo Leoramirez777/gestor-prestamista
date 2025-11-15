@@ -50,7 +50,8 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
         fecha_vencimiento=fecha_vencimiento,
         monto_total=monto_total,
         saldo_pendiente=monto_total,
-        estado="activo"
+        estado="activo",
+        frecuencia_pago=prestamo.frecuencia_pago
     )
     
     db.add(db_prestamo)

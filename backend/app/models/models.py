@@ -41,6 +41,7 @@ class Prestamo(Base):
     monto_total = Column(Float, nullable=False)  # Monto + interés
     saldo_pendiente = Column(Float, nullable=False)
     estado = Column(String(20), default="activo")  # activo, pagado, vencido
+    frecuencia_pago = Column(String(20), default="semanal")  # semanal, mensual
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relaciones

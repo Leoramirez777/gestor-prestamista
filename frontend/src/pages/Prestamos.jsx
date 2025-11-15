@@ -78,13 +78,13 @@ export default function Prestamos() {
     <div className="container my-5">
       {/* Header con botón de regreso */}
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1 className="fw-bold text-dark">💰 Gestión de Préstamos</h1>
+        <h1 className="fw-bold text-dark">Gestión de Préstamos</h1>
         <div className="d-flex gap-2">
           <button
             className="btn btn-success"
             onClick={() => navigate('/nuevos-prestamos')}
           >
-            ➕ Nuevo Préstamo
+            Nuevo Préstamo
           </button>
           <button
             className="btn btn-outline-secondary"
@@ -161,7 +161,7 @@ export default function Prestamos() {
             className="btn btn-success"
             onClick={() => navigate('/nuevos-prestamos')}
           >
-            ➕ Crear Primer Préstamo
+            Crear Primer Préstamo
           </button>
         </div>
       ) : (

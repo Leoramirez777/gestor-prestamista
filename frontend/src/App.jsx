@@ -173,7 +173,7 @@ function App({ onLogout }) {
       <div className="d-flex justify-content-between align-items-center mb-5">
         <div className="text-start">
           <h1 className="display-4 fw-bold text-dark mb-2">
-            🏦 Panel de Control - Gestor de Prestamista
+            Panel de Control - Gestor de Prestamista
           </h1>
           <p className="text-muted fs-5">Bienvenido, <strong>{username}</strong></p>
         </div>
@@ -289,10 +289,10 @@ function App({ onLogout }) {
         {/* Panel de actividad reciente */}
         <div className="col-lg-4">
           <div className="card border-0 shadow-sm h-100 bg-white">
-            <div className="card-header bg-gradient text-white border-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-              <h5 className="mb-0 fw-bold">
+            <div className="card-header bg-gradient border-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+              <h5 className="mb-0 fw-bold text-dark">
                 <i className="fas fa-chart-line me-2"></i>
-                📊 Actividad Reciente
+                Actividad Reciente
               </h5>
             </div>
             <div className="card-body p-4">
@@ -339,7 +339,7 @@ function App({ onLogout }) {
               </div>
               <div className="flex-grow-1">
                 <h6 className="alert-heading mb-1 fw-bold text-dark">
-                  ⚠️ Atención: Préstamos Vencidos
+                  Atención: Préstamos Vencidos
                 </h6>
                 <p className="mb-0 text-dark">
                   Tienes <span className="fw-bold text-danger">{stats.prestamosVencidos}</span> préstamo(s) vencido(s) que requieren atención inmediata.

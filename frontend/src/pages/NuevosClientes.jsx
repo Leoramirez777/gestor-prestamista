@@ -92,7 +92,7 @@ export default function NuevosClientes() {
     <div className="container my-5">
       {/* Header con botón de regreso */}
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1 className="fw-bold text-dark">📝 Registro de Nuevo Cliente</h1>
+        <h1 className="fw-bold text-dark">Registro de Nuevo Cliente</h1>
         <button
           className="btn btn-outline-secondary"
           onClick={() => navigate('/')}

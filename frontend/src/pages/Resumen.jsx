@@ -140,7 +140,7 @@ function Resumen() {
                   <i className="fas fa-dollar-sign"></i>
                 </div>
                 <h2 className="stat-value">{formatCurrency(stats.montoTotalPrestado)}</h2>
-                <p className="stat-label">💰 Total Prestado</p>
+                <p className="stat-label">Total Prestado</p>
               </div>
             </div>
           </div>
@@ -152,7 +152,7 @@ function Resumen() {
                   <i className="fas fa-hand-holding-usd"></i>
                 </div>
                 <h2 className="stat-value">{formatCurrency(stats.montoTotalRecaudado)}</h2>
-                <p className="stat-label">💵 Total Recaudado</p>
+                <p className="stat-label">Total Recaudado</p>
               </div>
             </div>
           </div>
