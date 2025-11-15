@@ -11,6 +11,7 @@ import Clientes from './pages/clientes.jsx'
 import PerfilCliente from './pages/PerfilCliente.jsx'
 import NuevosClientes from './pages/NuevosClientes.jsx'
 import Prestamos from './pages/Prestamos.jsx'
+import DetallePrestamo from './pages/DetallePrestamo.jsx'
 import NuevosPrestamos from './pages/NuevosPrestamos.jsx'
 import Pagos from './pages/Pagos.jsx'
 import Resumen from './pages/Resumen.jsx'
@@ -80,6 +81,14 @@ function AppRouter() {
         element={
           <ProtectedRoute isAuth={isAuth}>
             <Prestamos />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/prestamos/:id"
+        element={
+          <ProtectedRoute isAuth={isAuth}>
+            <DetallePrestamo />
           </ProtectedRoute>
         }
       />

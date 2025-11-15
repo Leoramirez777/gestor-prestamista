@@ -187,7 +187,11 @@ export default function Prestamos() {
                 </thead>
                 <tbody>
                   {prestamos.map((prestamo) => (
-                    <tr key={prestamo.id}>
+                    <tr 
+                      key={prestamo.id}
+                      onClick={() => navigate(`/prestamos/${prestamo.id}`)}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td>
                         <span className="fw-bold text-primary">#{prestamo.id}</span>
                       </td>
@@ -215,28 +219,13 @@ export default function Prestamos() {
                           {prestamo.estado || 'Sin estado'}
                         </span>
                       </td>
-                      <td>
-                        <div className="btn-group btn-group-sm">
-                          <button 
-                            className="btn btn-outline-primary btn-sm"
-                            title="Ver detalles"
-                            onClick={() => {
-                              // Aquí podrías navegar a detalles del préstamo
-                              console.log('Ver detalles de préstamo:', prestamo.id);
-                            }}
-                          >
-                            👁️
-                          </button>
-                          <button 
-                            className="btn btn-outline-success btn-sm"
-                            title="Registrar pago"
-                            onClick={() => {
-                              navigate('/pagos', { state: { prestamoId: prestamo.id } });
-                            }}
-                          >
-                            💵
-                          </button>
-                        </div>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <button 
+                          className="btn btn-success btn-sm"
+                          onClick={() => navigate('/pagos', { state: { prestamoId: prestamo.id } })}
+                        >
+                          Pagar
+                        </button>
                       </td>
                     </tr>
                   ))}
