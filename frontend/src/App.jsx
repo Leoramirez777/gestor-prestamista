@@ -38,6 +38,16 @@ function App({ onLogout }) {
 
     // Cargar datos del dashboard
     loadDashboardData();
+
+    // Recargar datos cuando la ventana vuelve a tener foco
+    const handleFocus = () => {
+      loadDashboardData();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   const handleLogout = () => {
@@ -83,15 +93,15 @@ function App({ onLogout }) {
       const actividadReciente = [
         ...pagos.slice(-3).map(p => ({
           tipo: 'pago',
-          descripcion: `Pago de $${p.monto} recibido`,
+          descripcion: `Pago de $${p.monto.toLocaleString('es-AR')} recibido`,
           fecha: p.fecha_pago,
           icono: '💵',
           color: 'success'
         })),
         ...prestamos.slice(-2).map(p => ({
           tipo: 'prestamo',
-          descripcion: `Préstamo de $${p.monto} creado`,
-          fecha: p.fecha_prestamo,
+          descripcion: `Préstamo de $${p.monto.toLocaleString('es-AR')} creado`,
+          fecha: p.created_at || p.fecha_inicio,
           icono: '💰',
           color: 'primary'
         }))
