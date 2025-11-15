@@ -38,9 +38,16 @@ export default function Pagos() {
         setPrestamos(prestamosData || []);
         setClientes(clientesData || []);
         
+        console.log('Préstamos cargados:', prestamosData);
+        console.log('Location state:', location.state);
+        
         // Si viene desde préstamos con un préstamo específico
         if (location.state?.prestamoId) {
-          setFormData(prev => ({ ...prev, prestamo_id: location.state.prestamoId }));
+          console.log('Abriendo modal con préstamo ID:', location.state.prestamoId);
+          setFormData(prev => ({ 
+            ...prev, 
+            prestamo_id: String(location.state.prestamoId) 
+          }));
           setShowModal(true);
         }
         
@@ -314,22 +321,23 @@ export default function Pagos() {
 
       {/* Modal para registrar pago */}
       {showModal && (
-        <div className="modal fade show" style={{ display: 'block' }} tabIndex="-1">
-          <div className="modal-backdrop fade show"></div>
-          <div className="modal-dialog">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Registrar Nuevo Pago</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowModal(false)}
-                ></button>
-              </div>
-              <form onSubmit={handleCreatePago}>
-                <div className="modal-body">
-                  <div className="mb-3">
-                    <label htmlFor="prestamo_id" className="form-label">Préstamo *</label>
+        <>
+          <div className="modal-backdrop fade show" onClick={() => setShowModal(false)}></div>
+          <div className="modal fade show d-block" tabIndex="-1" style={{ zIndex: 1050 }}>
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Registrar Nuevo Pago</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowModal(false)}
+                  ></button>
+                </div>
+                <form onSubmit={handleCreatePago}>
+                  <div className="modal-body">
+                    <div className="mb-3">
+                      <label htmlFor="prestamo_id" className="form-label">Préstamo *</label>
                     <select
                       className="form-select"
                       id="prestamo_id"
@@ -341,13 +349,22 @@ export default function Pagos() {
                       <option value="">Seleccionar préstamo...</option>
                       {prestamos.map(prestamo => {
                         const cliente = clientes.find(c => c.id === prestamo.cliente_id);
+                        const saldoPendiente = Number(prestamo.saldo_pendiente) || 0;
+                        // Solo mostrar préstamos con saldo pendiente
+                        if (saldoPendiente <= 0) return null;
+                        
                         return (
                           <option key={prestamo.id} value={prestamo.id}>
-                            Préstamo #{prestamo.id} - {cliente?.nombre} - Saldo: ${prestamo.saldo_pendiente}
+                            Préstamo #{prestamo.id} - {cliente?.nombre || 'Sin cliente'} - Saldo: {formatCurrency(saldoPendiente)}
                           </option>
                         );
                       })}
                     </select>
+                    {prestamos.filter(p => Number(p.saldo_pendiente) > 0).length === 0 && (
+                      <div className="form-text text-danger">
+                        No hay préstamos activos con saldo pendiente
+                      </div>
+                    )}
                   </div>
 
                   <div className="mb-3">
@@ -385,7 +402,7 @@ export default function Pagos() {
                       <option value="efectivo">Efectivo</option>
                       <option value="transferencia">Transferencia</option>
                       <option value="cheque">Cheque</option>
-                      <option value="tarjeta">💳 Tarjeta</option>
+                      <option value="tarjeta">Tarjeta</option>
                     </select>
                   </div>
 
@@ -421,14 +438,15 @@ export default function Pagos() {
                         Registrando...
                       </>
                     ) : (
-                      '💾 Registrar Pago'
+                      ' Registrar Pago'
                     )}
                   </button>
                 </div>
-              </form>
+                </form>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
