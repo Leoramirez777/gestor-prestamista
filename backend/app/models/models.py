@@ -3,6 +3,16 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database.database import Base
 
+class Usuario(Base):
+    __tablename__ = "usuarios"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    nombre_completo = Column(String(100), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Cliente(Base):
     __tablename__ = "clientes"
 

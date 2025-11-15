@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import clientes, prestamos, pagos
+from app.routers import clientes, prestamos, pagos, auth
 from app.database.database import engine
 from app.models import models
 
@@ -23,6 +23,7 @@ app.add_middleware(
 )
 
 # Incluir routers
+app.include_router(auth.router)
 app.include_router(clientes.router, prefix="/api/clientes", tags=["Clientes"])
 app.include_router(prestamos.router, prefix="/api/prestamos", tags=["Préstamos"])
 app.include_router(pagos.router, prefix="/api/pagos", tags=["Pagos"])

@@ -9,27 +9,28 @@ import "./styles/App.css";
 import { fetchClientes } from './api/clientes';
 import { fetchPrestamos } from './api/prestamos';
 import { fetchPagos } from './api/pagos';
+import { logout } from './api/auth';
 
-function App() {
+function App({ onLogout }) {
   const navigate = useNavigate();
   const [mensaje, setMensaje] = useState('');
+  const [username, setUsername] = useState('');
   const [stats, setStats] = useState({
     totalClientes: 0,
     totalPrestamos: 0,
     totalPagos: 0,
     montoTotalPrestado: 0,
-    montoTotalRecaudado: 0,
-    saldoPendiente: 0,
     prestamosActivos: 0,
-    prestamosVencidos: 0,
-    pagosHoy: 0,
-    clientesActivos: 0
+    prestamosVencidos: 0
   });
   const [loading, setLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
-  const [showStats, setShowStats] = useState(false);
 
   useEffect(() => {
+    // Obtener usuario
+    const storedUsername = localStorage.getItem('username');
+    setUsername(storedUsername || 'Usuario');
+
     // Verificar conexión con el backend
     axios.get('http://localhost:8000')
       .then(res => setMensaje(res.data.message))
@@ -38,6 +39,12 @@ function App() {
     // Cargar datos del dashboard
     loadDashboardData();
   }, []);
+
+  const handleLogout = () => {
+    logout();
+    if (onLogout) onLogout();
+    navigate('/login');
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -54,43 +61,22 @@ function App() {
       const prestamos = prestamosData || [];
       const pagos = pagosData || [];
 
-      // Calcular estadísticas
+      // Calcular estadísticas básicas
       const totalMontosPrestados = prestamos.reduce((sum, p) => sum + (p.monto || 0), 0);
-      const totalMontosRecaudados = pagos.reduce((sum, p) => sum + (p.monto || 0), 0);
-      const saldoPendienteTotal = prestamos.reduce((sum, p) => sum + (p.saldo_pendiente || 0), 0);
-      
-      // Préstamos activos (con saldo pendiente)
       const prestamosActivos = prestamos.filter(p => (p.saldo_pendiente || 0) > 0).length;
-      
-      // Préstamos vencidos (fecha vencimiento < hoy y saldo pendiente > 0)
       const hoy = new Date();
       const prestamosVencidos = prestamos.filter(p => {
-        const fechaVencimiento = new Date(p.fecha_vencimiento);
-        return fechaVencimiento < hoy && (p.saldo_pendiente || 0) > 0;
+        const fv = p.fecha_vencimiento ? new Date(p.fecha_vencimiento) : null;
+        return fv && fv < hoy && (p.saldo_pendiente || 0) > 0;
       }).length;
-
-      // Pagos de hoy
-      const pagosHoy = pagos.filter(p => {
-        const fechaPago = new Date(p.fecha_pago);
-        return fechaPago.toDateString() === hoy.toDateString();
-      }).length;
-
-      // Clientes con préstamos activos
-      const clientesConPrestamosActivos = new Set(
-        prestamos.filter(p => (p.saldo_pendiente || 0) > 0).map(p => p.cliente_id)
-      ).size;
 
       setStats({
         totalClientes: clientes.length,
         totalPrestamos: prestamos.length,
         totalPagos: pagos.length,
         montoTotalPrestado: totalMontosPrestados,
-        montoTotalRecaudado: totalMontosRecaudados,
-        saldoPendiente: saldoPendienteTotal,
         prestamosActivos,
-        prestamosVencidos,
-        pagosHoy,
-        clientesActivos: clientesConPrestamosActivos
+        prestamosVencidos
       });
 
       // Actividad reciente (últimos 5 items)
@@ -184,14 +170,26 @@ function App() {
   return (
     <div className="container my-5">
       {/* Header */}
-      <div className="text-center mb-5">
-        <h1 className="display-4 fw-bold text-dark mb-3">
-          🏦 Panel de Control - Gestor de Prestamista
-        </h1>
+      <div className="d-flex justify-content-between align-items-center mb-5">
+        <div className="text-start">
+          <h1 className="display-4 fw-bold text-dark mb-2">
+            🏦 Panel de Control - Gestor de Prestamista
+          </h1>
+          <p className="text-muted fs-5">Bienvenido, <strong>{username}</strong></p>
+        </div>
+        <button 
+          className="btn btn-outline-danger"
+          onClick={handleLogout}
+          style={{ borderRadius: '10px' }}
+        >
+          <i className="fas fa-sign-out-alt me-2"></i>
+          Cerrar Sesión
+        </button>
+      </div>
         <p className="lead text-muted">
           {mensaje || 'Sistema integral para la gestión de préstamos y clientes'}
         </p>
-      </div>
+      
 
       {/* Sección principal con navegación, estadísticas y actividad */}
       <div className="row g-4">
@@ -266,11 +264,11 @@ function App() {
                   <div className="d-grid gap-2">
                     <button 
                       className="btn btn-info btn-lg fw-semibold"
-                      onClick={() => setShowStats(!showStats)}
+                      onClick={() => navegarA('/resumen')}
                       style={{ borderRadius: '10px' }}
                     >
                       <i className="fas fa-chart-bar me-2"></i>
-                      {showStats ? 'Ocultar Resumen' : 'Ver Resumen'}
+                      Ver Resumen Completo
                     </button>
                     <button 
                       className="btn btn-outline-info fw-semibold"
@@ -285,152 +283,6 @@ function App() {
                 </div>
               </div>
             </div>
-
-            {/* Panel de Estadísticas Expandible */}
-            {showStats && (
-              <div className="col-12">
-                <div className="card border-0 shadow-sm bg-white">
-                  <div className="card-header bg-gradient text-white border-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                    <div className="d-flex justify-content-between align-items-center">
-                      <h5 className="mb-0 fw-bold">
-                        <i className="fas fa-chart-line me-2"></i>
-                        📊 Panel de Estadísticas Completo
-                      </h5>
-                      <button 
-                        className="btn btn-outline-light btn-sm"
-                        onClick={() => setShowStats(false)}
-                        style={{ borderRadius: '20px' }}
-                      >
-                        <i className="fas fa-times"></i>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="card-body p-4">
-                    {/* Estadísticas principales */}
-                    <div className="row g-4 mb-4">
-                      <div className="col-md-3">
-                        <div className="card border-0 shadow-lg text-white h-100" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                          <div className="card-body text-center p-4">
-                            <div className="mb-3">
-                              <i className="fas fa-dollar-sign fa-3x text-white"></i>
-                            </div>
-                            <h2 className="fw-bold text-white mb-2">{formatCurrency(stats.montoTotalPrestado)}</h2>
-                            <p className="mb-0 text-white-50 fw-semibold">💰 Total Prestado</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-3">
-                        <div className="card border-0 shadow-lg text-white h-100" style={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
-                          <div className="card-body text-center p-4">
-                            <div className="mb-3">
-                              <i className="fas fa-hand-holding-usd fa-3x text-white"></i>
-                            </div>
-                            <h2 className="fw-bold text-white mb-2">{formatCurrency(stats.montoTotalRecaudado)}</h2>
-                            <p className="mb-0 text-white-50 fw-semibold">💵 Total Recaudado</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-3">
-                        <div className="card border-0 shadow-lg text-white h-100" style={{ background: 'linear-gradient(135deg, #ff6b6b 0%, #ffa500 100%)' }}>
-                          <div className="card-body text-center p-4">
-                            <div className="mb-3">
-                              <i className="fas fa-clock fa-3x text-white"></i>
-                            </div>
-                            <h2 className="fw-bold text-white mb-2">{formatCurrency(stats.saldoPendiente)}</h2>
-                            <p className="mb-0 text-white-50 fw-semibold">⏱️ Saldo Pendiente</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-3">
-                        <div className="card border-0 shadow-lg text-white h-100" style={{ background: 'linear-gradient(135deg, #654ea3 0%, #eaafc8 100%)' }}>
-                          <div className="card-body text-center p-4">
-                            <div className="mb-3">
-                              <i className="fas fa-percentage fa-3x text-white"></i>
-                            </div>
-                            <h2 className="fw-bold text-white mb-2">
-                              {stats.montoTotalPrestado > 0 
-                                ? Math.round((stats.montoTotalRecaudado / stats.montoTotalPrestado) * 100) 
-                                : 0}%
-                            </h2>
-                            <p className="mb-0 text-white-50 fw-semibold">📊 Tasa de Recaudo</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Métricas secundarias */}
-                    <div className="row g-3">
-                      <div className="col-md-2">
-                        <div className="card text-center border-0 shadow-sm bg-white h-100">
-                          <div className="card-body p-3">
-                            <div className="mb-2">
-                              <i className="fas fa-play-circle text-primary fa-2x"></i>
-                            </div>
-                            <h4 className="text-primary fw-bold mb-1">{stats.prestamosActivos}</h4>
-                            <p className="card-text small mb-0 text-muted fw-semibold">Préstamos Activos</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-2">
-                        <div className="card text-center border-0 shadow-sm bg-white h-100">
-                          <div className="card-body p-3">
-                            <div className="mb-2">
-                              <i className="fas fa-exclamation-circle text-danger fa-2x"></i>
-                            </div>
-                            <h4 className="text-danger fw-bold mb-1">{stats.prestamosVencidos}</h4>
-                            <p className="card-text small mb-0 text-muted fw-semibold">Préstamos Vencidos</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-2">
-                        <div className="card text-center border-0 shadow-sm bg-white h-100">
-                          <div className="card-body p-3">
-                            <div className="mb-2">
-                              <i className="fas fa-calendar-day text-success fa-2x"></i>
-                            </div>
-                            <h4 className="text-success fw-bold mb-1">{stats.pagosHoy}</h4>
-                            <p className="card-text small mb-0 text-muted fw-semibold">Pagos Hoy</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-2">
-                        <div className="card text-center border-0 shadow-sm bg-white h-100">
-                          <div className="card-body p-3">
-                            <div className="mb-2">
-                              <i className="fas fa-user-check text-info fa-2x"></i>
-                            </div>
-                            <h4 className="text-info fw-bold mb-1">{stats.clientesActivos}</h4>
-                            <p className="card-text small mb-0 text-muted fw-semibold">Clientes Activos</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-2">
-                        <div className="card text-center border-0 shadow-sm bg-white h-100">
-                          <div className="card-body p-3">
-                            <div className="mb-2">
-                              <i className="fas fa-users text-warning fa-2x"></i>
-                            </div>
-                            <h4 className="text-warning fw-bold mb-1">{stats.totalClientes}</h4>
-                            <p className="card-text small mb-0 text-muted fw-semibold">Total Clientes</p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-2">
-                        <div className="card text-center border-0 shadow-sm bg-white h-100">
-                          <div className="card-body p-3">
-                            <div className="mb-2">
-                              <i className="fas fa-file-contract text-secondary fa-2x"></i>
-                            </div>
-                            <h4 className="text-secondary fw-bold mb-1">{stats.totalPrestamos}</h4>
-                            <p className="card-text small mb-0 text-muted fw-semibold">Total Préstamos</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
