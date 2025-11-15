@@ -17,7 +17,15 @@ import Resumen from './pages/Resumen.jsx'
 import { isAuthenticated } from './api/auth.js'
 
 function AppRouter() {
-  const [isAuth, setIsAuth] = useState(isAuthenticated());
+  // Comienza siempre en estado no autenticado para forzar paso por /login
+  const [isAuth, setIsAuth] = useState(false);
+
+  // Verifica token existente (si lo hubiera) tras montar y lo activa solo si es válido
+  useEffect(() => {
+    if (isAuthenticated()) {
+      setIsAuth(true);
+    }
+  }, []);
 
   const handleLogin = () => {
     setIsAuth(true);
@@ -29,83 +37,83 @@ function AppRouter() {
 
   return (
     <Routes>
-      <Route 
-        path="/login" 
+      <Route
+        path="/login"
         element={
           isAuth ? <Navigate to="/" replace /> : <Login onLogin={handleLogin} />
-        } 
+        }
       />
-      <Route 
-        path="/" 
+      <Route
+        path="/"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute isAuth={isAuth}>
             <App onLogout={handleLogout} />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/clientes" 
+      <Route
+        path="/clientes"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute isAuth={isAuth}>
             <Clientes />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/clientes/:id" 
+      <Route
+        path="/clientes/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute isAuth={isAuth}>
             <PerfilCliente />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/nuevos-clientes" 
+      <Route
+        path="/nuevos-clientes"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute isAuth={isAuth}>
             <NuevosClientes />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/prestamos" 
+      <Route
+        path="/prestamos"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute isAuth={isAuth}>
             <Prestamos />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/nuevos-prestamos" 
+      <Route
+        path="/nuevos-prestamos"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute isAuth={isAuth}>
             <NuevosPrestamos />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/pagos" 
+      <Route
+        path="/pagos"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute isAuth={isAuth}>
             <Pagos />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/pagos-atrasados" 
+      <Route
+        path="/pagos-atrasados"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute isAuth={isAuth}>
             <Pagos />
           </ProtectedRoute>
-        } 
+        }
       />
-      <Route 
-        path="/resumen" 
+      <Route
+        path="/resumen"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute isAuth={isAuth}>
             <Resumen />
           </ProtectedRoute>
-        } 
+        }
       />
       <Route path="*" element={<Navigate to={isAuth ? "/" : "/login"} replace />} />
     </Routes>
