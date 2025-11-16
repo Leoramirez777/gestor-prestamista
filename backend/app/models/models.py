@@ -22,6 +22,7 @@ class Cliente(Base):
     telefono = Column(String(20), nullable=False)
     direccion = Column(String(200))
     email = Column(String(100))
+    ocupacion = Column(String(100))
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relación con préstamos
