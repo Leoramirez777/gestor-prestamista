@@ -138,7 +138,7 @@ export default function NuevosClientes() {
                   </div>
                   
                   <div className="col-md-6 mb-3">
-                    <label htmlFor="dni" className="form-label">DNI/Cédula *</label>
+                    <label htmlFor="dni" className="form-label">DNI</label>
                     <input
                       type="text"
                       className="form-control"

@@ -208,7 +208,7 @@ export default function Prestamos() {
                         <span className="fw-bold">{formatCurrency(prestamo.monto)}</span>
                       </td>
                       <td>
-                        <span className="badge bg-info">{prestamo.tasa_interes}%</span>
+                        <span className="tasainteres">{prestamo.tasa_interes}%</span>
                       </td>
                       <td>{formatDate(prestamo.fecha_inicio)}</td>
                       <td>{formatDate(prestamo.fecha_vencimiento)}</td>

@@ -74,7 +74,7 @@ const PerfilCliente = () => {
   const getEstadoBadge = (estado) => {
     const badges = {
       activo: { bg: '#10b981', text: 'Activo' },
-      pagado: { bg: '#3b82f6', text: 'Pagado' },
+      pagado: { bg: '#0d6efd', text: 'Pagado' },
       vencido: { bg: '#ef4444', text: 'Vencido' }
     };
     const badge = badges[estado] || badges.activo;
