@@ -108,12 +108,16 @@ export default function Pagos() {
       const prestamo = prestamos.find(p => p.id === parseInt(value));
       setPrestamoSeleccionado(prestamo || null);
       
+      // Calcular el monto de la cuota actual (valor_cuota + saldo_cuota)
+      const montoCuotaActual = prestamo ? 
+        ((prestamo.valor_cuota || 0) + (prestamo.saldo_cuota || 0)).toFixed(2) : '';
+      
       // Resetear tipo y monto al cambiar préstamo
       setFormData(prev => ({ 
         ...prev, 
         prestamo_id: value,
         tipo_pago: 'cuota',
-        monto: prestamo?.valor_cuota?.toString() || ''
+        monto: montoCuotaActual
       }));
     } else if (name === 'tipo_pago') {
       let nuevoMonto = '';

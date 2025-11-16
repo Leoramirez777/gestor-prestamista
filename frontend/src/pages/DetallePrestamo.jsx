@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchPrestamos } from '../api/prestamos';
+import { fetchPrestamos, refinanciarPrestamo } from '../api/prestamos';
 import { fetchCliente } from '../api/clientes';
 import { fetchPagosByPrestamo } from '../api/pagos';
 import '../styles/DetallePrestamo.css';
@@ -13,6 +13,14 @@ export default function DetallePrestamo() {
   const [pagos, setPagos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showRefi, setShowRefi] = useState(false);
+  const [submittingRefi, setSubmittingRefi] = useState(false);
+  const [refiForm, setRefiForm] = useState({
+    interes_adicional: 10,
+    cuotas: 8,
+    frecuencia_pago: 'semanal',
+    fecha_inicio: new Date().toISOString().split('T')[0]
+  });
 
   useEffect(() => {
     const loadData = async () => {
@@ -91,16 +99,56 @@ export default function DetallePrestamo() {
 
   const getEstadoInfo = () => {
     if (!prestamo) return { texto: 'Desconocido', color: 'text-secondary' };
-    
-    const hoy = new Date();
-    const vencimiento = new Date(prestamo.fecha_vencimiento);
-    
-    if (prestamo.saldo_pendiente <= 0) {
-      return { texto: 'Pagado', color: 'text-success' };
-    } else if (vencimiento < hoy) {
-      return { texto: 'Vencido', color: 'text-danger' };
-    } else {
-      return { texto: 'Vigente', color: 'text-warning' };
+    const estado = (prestamo.estado || '').toLowerCase();
+    switch (estado) {
+      case 'pagado':
+        return { texto: 'Pagado', color: 'text-success' };
+      case 'impago':
+        return { texto: 'Impago', color: 'text-danger' };
+      case 'refinanciado':
+        return { texto: 'Refinanciado', color: 'text-info' };
+      case 'activo':
+        return { texto: 'Activo', color: 'text-warning' };
+      case 'vencido':
+        return { texto: 'Vencido', color: 'text-danger' };
+      default:
+        // Fallback heurístico
+        const hoy = new Date();
+        const vencimiento = new Date(prestamo.fecha_vencimiento);
+        if (prestamo.saldo_pendiente <= 0) return { texto: 'Pagado', color: 'text-success' };
+        if (vencimiento < hoy) return { texto: 'Vencido', color: 'text-danger' };
+        return { texto: 'Activo', color: 'text-warning' };
+    }
+  };
+
+  const handleChangeRefi = (e) => {
+    const { name, value } = e.target;
+    setRefiForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleRefinanciar = async (e) => {
+    e.preventDefault();
+    if (!prestamo) return;
+    try {
+      setSubmittingRefi(true);
+      const payload = {
+        interes_adicional: parseFloat(refiForm.interes_adicional),
+        cuotas: parseInt(refiForm.cuotas),
+        frecuencia_pago: refiForm.frecuencia_pago,
+        fecha_inicio: refiForm.fecha_inicio
+      };
+      const nuevo = await refinanciarPrestamo(prestamo.id, payload);
+      setShowRefi(false);
+      // Ir al nuevo préstamo creado si vino en respuesta, si no, volver al listado
+      if (nuevo?.id) {
+        navigate(`/prestamos/${nuevo.id}`);
+      } else {
+        navigate('/prestamos');
+      }
+    } catch (err) {
+      console.error('Error al refinanciar:', err);
+    } finally {
+      setSubmittingRefi(false);
     }
   };
 
@@ -234,6 +282,19 @@ export default function DetallePrestamo() {
         </div>
       </div>
 
+      {/* Banner de impago y acción de refinanciación */}
+      {prestamo.estado?.toLowerCase() === 'impago' && (
+        <div className="alert alert-warning d-flex justify-content-between align-items-center">
+          <div>
+            <strong>Préstamo impago:</strong> finalizó cuotas con deuda de {formatCurrency(prestamo.saldo_pendiente)}.
+          </div>
+          <button className="btn btn-sm btn-primary" onClick={() => setShowRefi(true)}>
+            <i className="fas fa-sync-alt me-2"></i>
+            Refinanciar
+          </button>
+        </div>
+      )}
+
       {/* Historial de pagos */}
       {pagos.length > 0 && (
         <div className="card shadow-sm">
@@ -265,6 +326,63 @@ export default function DetallePrestamo() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Refinanciación */}
+      {showRefi && (
+        <>
+          <div className="modal-backdrop fade show" onClick={() => setShowRefi(false)}></div>
+          <div className="modal fade show d-block" tabIndex="-1" style={{ zIndex: 1050 }}>
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Refinanciar Préstamo</h5>
+                  <button type="button" className="btn-close" onClick={() => setShowRefi(false)} aria-label="Close"></button>
+                </div>
+                <form onSubmit={handleRefinanciar}>
+                  <div className="modal-body">
+                    <div className="mb-3">
+                      <label className="form-label">Saldo a Refinanciar</label>
+                      <div className="alert alert-info mb-0"><strong>{formatCurrency(prestamo.saldo_pendiente)}</strong></div>
+                    </div>
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label">Interés adicional (%)</label>
+                        <input type="number" name="interes_adicional" className="form-control" step="0.01" min="0" value={refiForm.interes_adicional} onChange={handleChangeRefi} required />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Cuotas</label>
+                        <input type="number" name="cuotas" className="form-control" min="1" value={refiForm.cuotas} onChange={handleChangeRefi} required />
+                      </div>
+                    </div>
+                    <div className="row g-3 mt-1">
+                      <div className="col-md-6">
+                        <label className="form-label">Frecuencia</label>
+                        <select name="frecuencia_pago" className="form-select" value={refiForm.frecuencia_pago} onChange={handleChangeRefi}>
+                          <option value="semanal">Semanal</option>
+                          <option value="mensual">Mensual</option>
+                        </select>
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Fecha de inicio</label>
+                        <input type="date" name="fecha_inicio" className="form-control" value={refiForm.fecha_inicio} onChange={handleChangeRefi} />
+                      </div>
+                    </div>
+                    <div className="mt-3 small text-muted">
+                      El capital refinanciado será: saldo × (1 + interés). Se crearán las cuotas con el nuevo valor.
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowRefi(false)}>Cancelar</button>
+                    <button type="submit" className="btn btn-primary" disabled={submittingRefi}>
+                      {submittingRefi ? 'Procesando...' : 'Crear Préstamo Refinanciado'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );

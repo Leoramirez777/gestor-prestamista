@@ -60,6 +60,12 @@ class Prestamo(PrestamoBase):
     class Config:
         from_attributes = True
 
+class RefinanciacionCreate(BaseModel):
+    interes_adicional: float  # porcentaje, ej: 10 para 10%
+    cuotas: int
+    frecuencia_pago: Optional[str] = "semanal"  # semanal o mensual
+    fecha_inicio: Optional[date] = None
+
 
 # ===== PAGOS =====
 class PagoBase(BaseModel):

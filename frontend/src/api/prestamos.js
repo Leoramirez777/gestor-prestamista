@@ -52,3 +52,13 @@ export async function deletePrestamo(id) {
     handleApiError(err);
   }
 }
+
+export async function refinanciarPrestamo(id, payload) {
+  // payload: { interes_adicional: number, cuotas: number, frecuencia_pago?: 'semanal'|'mensual', fecha_inicio?: 'YYYY-MM-DD' }
+  try {
+    const { data } = await api.post(`/api/prestamos/${id}/refinanciar`, payload);
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

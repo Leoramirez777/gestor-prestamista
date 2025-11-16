@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import timedelta
+from datetime import timedelta, date
 from app.database.database import get_db
 from app.models.models import Prestamo, Cliente
-from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate
+from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate
 
 router = APIRouter()
 
@@ -96,3 +96,58 @@ def delete_prestamo(prestamo_id: int, db: Session = Depends(get_db)):
     db.delete(db_prestamo)
     db.commit()
     return None
+
+@router.post("/{prestamo_id}/refinanciar", response_model=PrestamoSchema, status_code=status.HTTP_201_CREATED)
+def refinanciar_prestamo(prestamo_id: int, params: RefinanciacionCreate, db: Session = Depends(get_db)):
+    """Refinanciar un préstamo impago: crea un nuevo préstamo a partir del saldo pendiente."""
+    db_prestamo = db.query(Prestamo).filter(Prestamo.id == prestamo_id).first()
+    if not db_prestamo:
+        raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+
+    if db_prestamo.saldo_pendiente <= 0:
+        raise HTTPException(status_code=400, detail="El préstamo no tiene saldo pendiente para refinanciar")
+
+    # Debe haber terminado el plan original (todas las cuotas) o estar marcado como impago
+    if not (db_prestamo.cuotas_pagadas >= db_prestamo.cuotas_totales or db_prestamo.estado.lower() in ["impago", "vencido"]):
+        raise HTTPException(status_code=400, detail="Solo se puede refinanciar préstamos impagos o con plan original finalizado")
+
+    interes = params.interes_adicional / 100.0
+    capital_refinanciado = round(db_prestamo.saldo_pendiente * (1 + interes), 2)
+
+    # Calcular plazo según frecuencia y cuotas
+    frecuencia = (params.frecuencia_pago or db_prestamo.frecuencia_pago or "semanal").lower()
+    cuotas_totales = max(1, int(params.cuotas))
+    if frecuencia == "mensual":
+        plazo_dias = cuotas_totales * 30
+    else:
+        plazo_dias = cuotas_totales * 7
+
+    fecha_inicio = params.fecha_inicio or date.today()
+    fecha_vencimiento = fecha_inicio + timedelta(days=plazo_dias)
+    valor_cuota = capital_refinanciado / cuotas_totales
+
+    # Crear nuevo préstamo (refinanciado)
+    nuevo = Prestamo(
+        cliente_id=db_prestamo.cliente_id,
+        monto=db_prestamo.saldo_pendiente,  # capital original adeudado
+        tasa_interes=params.interes_adicional,
+        plazo_dias=plazo_dias,
+        fecha_inicio=fecha_inicio,
+        fecha_vencimiento=fecha_vencimiento,
+        monto_total=capital_refinanciado,
+        saldo_pendiente=capital_refinanciado,
+        estado="activo",
+        frecuencia_pago=frecuencia,
+        cuotas_totales=cuotas_totales,
+        cuotas_pagadas=0,
+        valor_cuota=valor_cuota,
+        saldo_cuota=0.0,
+    )
+
+    db.add(nuevo)
+
+    # Actualizar préstamo original a 'refinanciado'
+    db_prestamo.estado = "refinanciado"
+    db.commit()
+    db.refresh(nuevo)
+    return nuevo

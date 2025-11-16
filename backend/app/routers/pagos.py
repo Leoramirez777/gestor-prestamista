@@ -88,12 +88,22 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     # Actualizar saldo pendiente del préstamo
     prestamo.saldo_pendiente -= pago.monto
     
-    # Si completó todas las cuotas o saldo es 0, marcar como pagado
-    if prestamo.cuotas_pagadas >= prestamo.cuotas_totales or prestamo.saldo_pendiente <= 0:
-        prestamo.estado = "pagado"
-        prestamo.saldo_pendiente = max(0, prestamo.saldo_pendiente)
-        prestamo.saldo_cuota = 0.0
+    # Estados finales según cuotas y saldo
+    if prestamo.cuotas_pagadas >= prestamo.cuotas_totales:
         prestamo.cuotas_pagadas = prestamo.cuotas_totales
+        if prestamo.saldo_pendiente <= 0:
+            prestamo.estado = "pagado"
+            prestamo.saldo_pendiente = max(0, prestamo.saldo_pendiente)
+            prestamo.saldo_cuota = 0.0
+        else:
+            # Terminó las cuotas pero quedó deuda: marcar como impago
+            prestamo.estado = "impago"
+            # El saldo_pendiente queda como deuda final
+    elif prestamo.saldo_pendiente <= 0:
+        # Saldo cubierto antes de agotar cuotas
+        prestamo.estado = "pagado"
+        prestamo.saldo_pendiente = 0.0
+        prestamo.saldo_cuota = 0.0
     
     db.commit()
     db.refresh(db_pago)
