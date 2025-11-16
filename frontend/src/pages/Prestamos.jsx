@@ -11,6 +11,15 @@ export default function Prestamos() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Filtros de barra
+  const [filtroNombre, setFiltroNombre] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("");
+  const [filtroMontoMin, setFiltroMontoMin] = useState("");
+  const [filtroMontoMax, setFiltroMontoMax] = useState("");
+  const [filtroTasaMin, setFiltroTasaMin] = useState("");
+  const [filtroTasaMax, setFiltroTasaMax] = useState("");
+  const [filtroFechaCreacion, setFiltroFechaCreacion] = useState("");
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -65,7 +74,30 @@ export default function Prestamos() {
     return date.toLocaleDateString('es-ES');
   };
 
+  // Filtrar préstamos según los filtros
+  const prestamosFiltrados = prestamos.filter((prestamo) => {
+    // Nombre de cliente
+    const cliente = clientes.find(c => c.id === prestamo.cliente_id);
+    const nombreCliente = cliente ? cliente.nombre.toLowerCase() : "";
+    if (filtroNombre && !nombreCliente.includes(filtroNombre.toLowerCase())) return false;
+    // Estado
+    if (filtroEstado && prestamo.estado !== filtroEstado) return false;
+    // Monto
+    if (filtroMontoMin && prestamo.monto < parseFloat(filtroMontoMin)) return false;
+    if (filtroMontoMax && prestamo.monto > parseFloat(filtroMontoMax)) return false;
+    // Tasa de interés
+    if (filtroTasaMin && prestamo.tasa_interes < parseFloat(filtroTasaMin)) return false;
+    if (filtroTasaMax && prestamo.tasa_interes > parseFloat(filtroTasaMax)) return false;
+    // Fecha de creación (exacta)
+    if (filtroFechaCreacion) {
+      const fechaPrestamo = new Date(prestamo.fecha_inicio.split('T')[0]).toISOString().split('T')[0];
+      if (fechaPrestamo !== filtroFechaCreacion) return false;
+    }
+    return true;
+  });
+
   if (loading) {
+
     return (
       <div className="container my-5">
         <div className="d-flex justify-content-center">
@@ -77,40 +109,140 @@ export default function Prestamos() {
     );
   }
 
+  // ...existing code...
   return (
     <div className="container my-5">
-      {/* Header con botón de regreso */}
+      {/* Encabezado con botón de regreso */}
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1 className="fw-bold text-dark">Gestión de Préstamos</h1>
-        <div className="d-flex gap-2">
-          <button
-            className="btn btn-success"
-            onClick={() => navigate('/nuevos-prestamos')}
-          >
-            Nuevo Préstamo
-          </button>
-          <button
-            className="btn btn-outline-secondary"
-            onClick={() => navigate('/')}
-          >
-            ← Volver al Menú
-          </button>
-        </div>
+        <h1 className="fw-bold text-dark m-0">Gestión de Préstamos</h1>
+        <button className="btn btn-outline-secondary" onClick={() => navigate('/')}>← Volver al Menú</button>
       </div>
 
-      {/* Mensaje de error */}
-      {error && (
-        <div className="alert alert-danger alert-dismissible fade show">
-          {error}
-          <button 
-            type="button" 
-            className="btn-close" 
-            onClick={() => setError(null)}
-          ></button>
+      <div className="card mb-4 shadow-sm border-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '16px' }}>
+        <div className="card-body p-4">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5 className="text-white fw-bold mb-0">
+              <i className="fas fa-filter me-2"></i>Filtros de Búsqueda
+            </h5>
+            <button 
+              type="button" 
+              className="btn btn-sm btn-light"
+              onClick={() => {
+                setFiltroNombre("");
+                setFiltroEstado("");
+                setFiltroMontoMin("");
+                setFiltroMontoMax("");
+                setFiltroTasaMin("");
+                setFiltroTasaMax("");
+                setFiltroFechaCreacion("");
+              }}
+            >
+              <i className="fas fa-times me-1"></i>Limpiar
+            </button>
+          </div>
+          
+          {/* Primera fila de filtros */}
+          <div className="row g-3 mb-3">
+            <div className="col-md-3">
+              <label className="form-label text-white mb-1 small">Nombre del Cliente</label>
+              <input 
+                type="text" 
+                className="form-control" 
+                value={filtroNombre} 
+                onChange={e => setFiltroNombre(e.target.value)} 
+                placeholder="Buscar por nombre..."
+                style={{ borderRadius: '8px' }}
+              />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label text-white mb-1 small">Estado del Préstamo</label>
+              <select 
+                className="form-select" 
+                value={filtroEstado} 
+                onChange={e => setFiltroEstado(e.target.value)}
+                style={{ borderRadius: '8px' }}
+              >
+                <option value="">Todos</option>
+                <option value="activo">Activo</option>
+                <option value="pagado">Pagado</option>
+                <option value="vencido">Vencido</option>
+              </select>
+            </div>
+            <div className="col-md-2">
+              <label className="form-label text-white mb-1 small">Monto Mínimo</label>
+              <input 
+                type="number" 
+                className="form-control" 
+                value={filtroMontoMin} 
+                onChange={e => setFiltroMontoMin(e.target.value)} 
+                placeholder="$ Min" 
+                min="0"
+                style={{ borderRadius: '8px' }}
+              />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label text-white mb-1 small">Monto Máximo</label>
+              <input 
+                type="number" 
+                className="form-control" 
+                value={filtroMontoMax} 
+                onChange={e => setFiltroMontoMax(e.target.value)} 
+                placeholder="$ Max" 
+                min="0"
+                style={{ borderRadius: '8px' }}
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label text-white mb-1 small">Fecha de Creación</label>
+              <input 
+                type="date" 
+                className="form-control" 
+                value={filtroFechaCreacion} 
+                onChange={e => setFiltroFechaCreacion(e.target.value)}
+                style={{ borderRadius: '8px' }}
+              />
+            </div>
+          </div>
+          
+          {/* Segunda fila de filtros */}
+          <div className="row g-3">
+            <div className="col-md-2">
+              <label className="form-label text-white mb-1 small">Tasa Mínima (%)</label>
+              <input 
+                type="number" 
+                className="form-control" 
+                value={filtroTasaMin} 
+                onChange={e => setFiltroTasaMin(e.target.value)} 
+                placeholder="% Min" 
+                min="0" 
+                step="0.1"
+                style={{ borderRadius: '8px' }}
+              />
+            </div>
+            <div className="col-md-2">
+              <label className="form-label text-white mb-1 small">Tasa Máxima (%)</label>
+              <input 
+                type="number" 
+                className="form-control" 
+                value={filtroTasaMax} 
+                onChange={e => setFiltroTasaMax(e.target.value)} 
+                placeholder="% Max" 
+                min="0" 
+                step="0.1"
+                style={{ borderRadius: '8px' }}
+              />
+            </div>
+            <div className="col-md-8 d-flex align-items-end">
+              <div className="alert alert-light mb-0 py-2 w-100" style={{ borderRadius: '8px' }}>
+                <small className="text-muted">
+                  <i className="fas fa-info-circle me-1"></i>
+                  Mostrando <strong>{prestamosFiltrados.length}</strong> de <strong>{prestamos.length}</strong> préstamos
+                </small>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
-
-      {/* Estadísticas rápidas */}
+      </div>
       <div className="row mb-4">
         <div className="col-md-3">
           <div className="card text-center border-0 bg-light">
@@ -123,9 +255,7 @@ export default function Prestamos() {
         <div className="col-md-3">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
-              <h5 className="card-title text-success">
-                {prestamos.filter(p => p.estado === 'activo').length}
-              </h5>
+              <h5 className="card-title text-success">{prestamos.filter(p => p.estado === 'activo').length}</h5>
               <p className="card-text small">Activos</p>
             </div>
           </div>
@@ -133,9 +263,7 @@ export default function Prestamos() {
         <div className="col-md-3">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
-              <h5 className="card-title text-primary">
-                {formatCurrency(prestamos.reduce((sum, p) => sum + (p.monto || 0), 0))}
-              </h5>
+              <h5 className="card-title text-primary">{formatCurrency(prestamos.reduce((sum, p) => sum + (p.monto || 0), 0))}</h5>
               <p className="card-text small">Total Prestado</p>
             </div>
           </div>
@@ -143,17 +271,14 @@ export default function Prestamos() {
         <div className="col-md-3">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
-              <h5 className="card-title text-warning">
-                {formatCurrency(prestamos.reduce((sum, p) => sum + (p.saldo_pendiente || 0), 0))}
-              </h5>
+              <h5 className="card-title text-dark">{formatCurrency(prestamos.reduce((sum, p) => sum + (p.saldo_pendiente || 0), 0))}</h5>
               <p className="card-text small">Saldo Pendiente</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Lista de préstamos */}
-      {prestamos.length === 0 ? (
+      {prestamosFiltrados.length === 0 ? (
         <div className="text-center py-5">
           <div className="mb-3">
             <i className="fas fa-hand-holding-usd text-muted" style={{ fontSize: '4rem' }}></i>
@@ -189,7 +314,7 @@ export default function Prestamos() {
                   </tr>
                 </thead>
                 <tbody>
-                  {prestamos.map((prestamo) => (
+                  {prestamosFiltrados.map((prestamo) => (
                     <tr 
                       key={prestamo.id}
                       onClick={() => navigate(`/prestamos/${prestamo.id}`)}
@@ -241,3 +366,4 @@ export default function Prestamos() {
     </div>
   );
 }
+
