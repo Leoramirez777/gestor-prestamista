@@ -16,11 +16,13 @@ export default function Pagos() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
     prestamo_id: '',
+    tipo_pago: 'cuota',
     monto: '',
     metodo_pago: 'efectivo',
     notas: ''
   });
   const [creatingPago, setCreatingPago] = useState(false);
+  const [prestamoSeleccionado, setPrestamoSeleccionado] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -98,7 +100,35 @@ export default function Pagos() {
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'prestamo_id') {
+      const prestamo = prestamos.find(p => p.id === parseInt(value));
+      setPrestamoSeleccionado(prestamo || null);
+      
+      // Resetear tipo y monto al cambiar préstamo
+      setFormData(prev => ({ 
+        ...prev, 
+        prestamo_id: value,
+        tipo_pago: 'cuota',
+        monto: prestamo?.valor_cuota?.toString() || ''
+      }));
+    } else if (name === 'tipo_pago') {
+      let nuevoMonto = '';
+      if (prestamoSeleccionado) {
+        if (value === 'cuota') {
+          // Monto de la cuota actual (valor_cuota + saldo_cuota)
+          const montoCuotaActual = (prestamoSeleccionado.valor_cuota || 0) + (prestamoSeleccionado.saldo_cuota || 0);
+          nuevoMonto = montoCuotaActual.toFixed(2);
+        } else if (value === 'total') {
+          // Saldo pendiente total
+          nuevoMonto = (prestamoSeleccionado.saldo_pendiente || 0).toFixed(2);
+        }
+        // Si es 'parcial', dejar vacío para que el usuario ingrese
+      }
+      setFormData(prev => ({ ...prev, tipo_pago: value, monto: nuevoMonto }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleCreatePago = async (e) => {
@@ -108,19 +138,32 @@ export default function Pagos() {
 
     try {
       // Validaciones del lado del cliente
-      if (!formData.prestamo_id || !formData.monto) {
-        throw new Error('Por favor complete todos los campos requeridos');
+      if (!formData.prestamo_id) {
+        throw new Error('Por favor seleccione un préstamo');
       }
 
-      if (parseFloat(formData.monto) <= 0) {
+      if (formData.tipo_pago === 'parcial' && (!formData.monto || parseFloat(formData.monto) <= 0)) {
         throw new Error('El monto debe ser mayor a cero');
+      }
+
+      // Construir notas: primero tipo de pago, luego notas adicionales
+      const tiposPago = {
+        'cuota': 'Pago de Cuota',
+        'parcial': 'Pago Parcial',
+        'total': 'Pago Total del Saldo'
+      };
+      
+      let notasFinales = tiposPago[formData.tipo_pago] || 'Pago';
+      if (formData.notas && formData.notas.trim()) {
+        notasFinales += '. ' + formData.notas.trim();
       }
 
       const pagoData = {
         prestamo_id: parseInt(formData.prestamo_id),
         monto: parseFloat(formData.monto),
         metodo_pago: formData.metodo_pago,
-        notas: formData.notas || '',
+        tipo_pago: formData.tipo_pago,
+        notas: notasFinales,
         fecha_pago: new Date().toISOString().split('T')[0]
       };
 
@@ -130,8 +173,12 @@ export default function Pagos() {
       console.log('Pago creado exitosamente:', nuevoPago);
       
       // Recargar datos
-      const pagosData = await fetchPagos();
+      const [pagosData, prestamosData] = await Promise.all([
+        fetchPagos(),
+        fetchPrestamos()
+      ]);
       setPagos(pagosData || []);
+      setPrestamos(prestamosData || []);
       
       // Mostrar mensaje de éxito
       alert('¡Pago registrado exitosamente!');
@@ -139,10 +186,12 @@ export default function Pagos() {
       // Limpiar formulario y cerrar modal
       setFormData({
         prestamo_id: '',
+        tipo_pago: 'cuota',
         monto: '',
         metodo_pago: 'efectivo',
         notas: ''
       });
+      setPrestamoSeleccionado(null);
       setShowModal(false);
       
     } catch (error) {
@@ -367,27 +416,63 @@ export default function Pagos() {
                     )}
                   </div>
 
-                  <div className="mb-3">
-                    <label htmlFor="monto" className="form-label">Monto *</label>
-                    <div className="input-group">
-                      <span className="input-group-text">$</span>
-                      <input
-                        type="number"
-                        className="form-control"
-                        id="monto"
-                        name="monto"
-                        value={formData.monto}
-                        onChange={handleFormChange}
-                        required
-                        min="0.01"
-                        step="0.01"
-                        placeholder="0.00"
-                        autoComplete="off"
-                      />
-                      <span className="input-group-text">ARS</span>
-                    </div>
-                    <div className="form-text">Ingrese el monto en pesos argentinos</div>
-                  </div>
+                  {prestamoSeleccionado && (
+                    <>
+                      <div className="mb-3">
+                        <label htmlFor="tipo_pago" className="form-label">Tipo de Pago *</label>
+                        <select
+                          className="form-select"
+                          id="tipo_pago"
+                          name="tipo_pago"
+                          value={formData.tipo_pago}
+                          onChange={handleFormChange}
+                          required
+                        >
+                          <option value="cuota">Pago de Cuota</option>
+                          <option value="parcial">Pago Parcial</option>
+                          <option value="total">Pago Total del Saldo</option>
+                        </select>
+                        <div className="form-text">
+                          {formData.tipo_pago === 'cuota' && `Cuota actual: ${formatCurrency((prestamoSeleccionado.valor_cuota || 0) + (prestamoSeleccionado.saldo_cuota || 0))}`}
+                          {formData.tipo_pago === 'total' && `Saldo total: ${formatCurrency(prestamoSeleccionado.saldo_pendiente || 0)}`}
+                          {formData.tipo_pago === 'parcial' && 'Ingrese el monto que desea pagar'}
+                        </div>
+                      </div>
+
+                      {formData.tipo_pago === 'parcial' && (
+                        <div className="mb-3">
+                          <label htmlFor="monto" className="form-label">Monto *</label>
+                          <div className="input-group">
+                            <span className="input-group-text">$</span>
+                            <input
+                              type="number"
+                              className="form-control"
+                              id="monto"
+                              name="monto"
+                              value={formData.monto}
+                              onChange={handleFormChange}
+                              required
+                              min="0.01"
+                              step="0.01"
+                              placeholder="0.00"
+                              autoComplete="off"
+                            />
+                            <span className="input-group-text">ARS</span>
+                          </div>
+                          <div className="form-text">Ingrese el monto en pesos argentinos</div>
+                        </div>
+                      )}
+
+                      {formData.tipo_pago !== 'parcial' && (
+                        <div className="mb-3">
+                          <label className="form-label">Monto a Pagar</label>
+                          <div className="alert alert-info mb-0">
+                            <strong>{formatCurrency(parseFloat(formData.monto) || 0)}</strong>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
 
                   <div className="mb-3">
                     <label htmlFor="metodo_pago" className="form-label">Método de Pago *</label>

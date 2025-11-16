@@ -41,6 +41,14 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
     monto_total = prestamo.monto + monto_interes
     fecha_vencimiento = prestamo.fecha_inicio + timedelta(days=prestamo.plazo_dias)
     
+    # Calcular cuotas según frecuencia de pago
+    if prestamo.frecuencia_pago == "mensual":
+        cuotas_totales = max(1, round(prestamo.plazo_dias / 30))
+    else:  # semanal
+        cuotas_totales = max(1, round(prestamo.plazo_dias / 7))
+    
+    valor_cuota = monto_total / cuotas_totales
+    
     db_prestamo = Prestamo(
         cliente_id=prestamo.cliente_id,
         monto=prestamo.monto,
@@ -51,7 +59,11 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
         monto_total=monto_total,
         saldo_pendiente=monto_total,
         estado="activo",
-        frecuencia_pago=prestamo.frecuencia_pago
+        frecuencia_pago=prestamo.frecuencia_pago,
+        cuotas_totales=cuotas_totales,
+        cuotas_pagadas=0,
+        valor_cuota=valor_cuota,
+        saldo_cuota=0.0
     )
     
     db.add(db_prestamo)

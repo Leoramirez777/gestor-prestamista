@@ -42,6 +42,11 @@ class Prestamo(Base):
     saldo_pendiente = Column(Float, nullable=False)
     estado = Column(String(20), default="activo")  # activo, pagado, vencido
     frecuencia_pago = Column(String(20), default="semanal")  # semanal, mensual
+    # Sistema de cuotas
+    cuotas_totales = Column(Integer, default=0)
+    cuotas_pagadas = Column(Integer, default=0)
+    valor_cuota = Column(Float, default=0.0)
+    saldo_cuota = Column(Float, default=0.0)  # + debe más, - tiene a favor
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relaciones
@@ -58,6 +63,7 @@ class Pago(Base):
     fecha_pago = Column(Date, nullable=False)
     metodo_pago = Column(String(50))  # efectivo, transferencia, etc.
     notas = Column(String(200))
+    tipo_pago = Column(String(20), default="parcial")  # cuota, parcial, total
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relación

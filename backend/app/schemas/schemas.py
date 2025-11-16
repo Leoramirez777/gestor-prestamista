@@ -51,6 +51,10 @@ class Prestamo(PrestamoBase):
     monto_total: float
     saldo_pendiente: float
     estado: str
+    cuotas_totales: int
+    cuotas_pagadas: int
+    valor_cuota: float
+    saldo_cuota: float
     created_at: datetime
     
     class Config:
@@ -63,6 +67,7 @@ class PagoBase(BaseModel):
     monto: float
     fecha_pago: date
     metodo_pago: Optional[str] = "efectivo"
+    tipo_pago: Optional[str] = "parcial"  # cuota, parcial, total
     notas: Optional[str] = None
 
 class PagoCreate(PagoBase):
