@@ -9,6 +9,7 @@ class ClienteBase(BaseModel):
     telefono: str
     direccion: Optional[str] = None
     email: Optional[str] = None
+    ocupacion: Optional[str] = None
 
 class ClienteCreate(ClienteBase):
     pass
@@ -19,6 +20,7 @@ class ClienteUpdate(BaseModel):
     telefono: Optional[str] = None
     direccion: Optional[str] = None
     email: Optional[str] = None
+    ocupacion: Optional[str] = None
 
 class Cliente(ClienteBase):
     id: int

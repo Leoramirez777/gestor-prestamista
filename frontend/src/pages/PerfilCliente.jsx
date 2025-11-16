@@ -16,7 +16,7 @@ const PerfilCliente = () => {
   const [prestamoExpandido, setPrestamoExpandido] = useState(null);
   const [pagos, setPagos] = useState({});
   const [modoEdicion, setModoEdicion] = useState(false);
-  const [formData, setFormData] = useState({ nombre: "", dni: "", telefono: "", email: "", direccion: "" });
+  const [formData, setFormData] = useState({ nombre: "", dni: "", telefono: "", email: "", direccion: "", ocupacion: "" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -93,6 +93,7 @@ const PerfilCliente = () => {
       telefono: cliente.telefono || "",
       email: cliente.email || "",
       direccion: cliente.direccion || "",
+      ocupacion: cliente.ocupacion || "",
     });
     setModoEdicion(true);
   };
@@ -205,6 +206,10 @@ const PerfilCliente = () => {
                   <label className="form-label">Email</label>
                   <input className="form-control" type="email" name="email" value={formData.email} onChange={handleChange} />
                 </div>
+                <div className="col-md-6 mb-3">
+                  <label className="form-label">Ocupación</label>
+                  <input className="form-control" name="ocupacion" value={formData.ocupacion} onChange={handleChange} />
+                </div>
                 <div className="col-md-12 mb-3">
                   <label className="form-label">Dirección</label>
                   <input className="form-control" name="direccion" value={formData.direccion} onChange={handleChange} />
@@ -237,23 +242,27 @@ const PerfilCliente = () => {
               </div>
 
               <div className="row">
-                <div className="col-md-6 mb-3">
+                <div className="col-md-4 mb-3">
                   <label className="text-muted small">DNI</label>
                   <p className="fs-5 mb-0">{cliente.dni || 'No registrado'}</p>
                 </div>
-                <div className="col-md-6 mb-3">
+                <div className="col-md-4 mb-3">
                   <label className="text-muted small">Teléfono</label>
                   <p className="fs-5 mb-0">{cliente.telefono}</p>
                 </div>
-                <div className="col-md-6 mb-3">
+                <div className="col-md-4 mb-3">
                   <label className="text-muted small">Email</label>
                   <p className="fs-5 mb-0">{cliente.email || 'No registrado'}</p>
                 </div>
-                <div className="col-md-6 mb-3">
+                <div className="col-md-4 mb-3">
+                  <label className="text-muted small">Ocupación</label>
+                  <p className="fs-5 mb-0">{cliente.ocupacion || 'No registrada'}</p>
+                </div>
+                <div className="col-md-4 mb-3">
                   <label className="text-muted small">Fecha de registro</label>
                   <p className="fs-5 mb-0">{formatDate(cliente.created_at)}</p>
                 </div>
-                <div className="col-md-12 mb-3">
+                <div className="col-md-4 mb-3">
                   <label className="text-muted small">Dirección</label>
                   <p className="fs-5 mb-0">{cliente.direccion || 'No registrada'}</p>
                 </div>

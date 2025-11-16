@@ -256,7 +256,9 @@ function App({ onLogout }) {
                         )}
                       </div>
                       <div className="text-end">
-                        <h3 className={`text-${item.color} fw-bold mb-0`}>{item.stat}</h3>
+                        <h3 className={`text-${item.color} fw-bold mb-0`}>
+                          {item.title === 'Resumen Financiero' ? formatCurrency(item.stat) : item.stat}
+                        </h3>
                         <small className="text-muted fw-semibold">{item.statLabel}</small>
                       </div>
                     </div>
