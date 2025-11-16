@@ -90,22 +90,37 @@ function App({ onLogout }) {
       });
 
       // Actividad reciente (últimos 5 items)
+      // Primero ordenar pagos por ID descendente (más reciente primero)
+      const pagosOrdenados = [...pagos].sort((a, b) => b.id - a.id);
+      const prestamosOrdenados = [...prestamos].sort((a, b) => b.id - a.id);
+      
       const actividadReciente = [
-        ...pagos.slice(-3).map(p => ({
+        ...pagosOrdenados.slice(0, 3).map(p => ({
           tipo: 'pago',
           descripcion: `Pago de $${p.monto.toLocaleString('es-AR')} recibido`,
           fecha: p.fecha_pago,
+          id: p.id,
+          timestamp: p.created_at || p.fecha_pago,
           icono: '💵',
           color: 'success'
         })),
-        ...prestamos.slice(-2).map(p => ({
+        ...prestamosOrdenados.slice(0, 2).map(p => ({
           tipo: 'prestamo',
           descripcion: `Préstamo de $${p.monto.toLocaleString('es-AR')} creado`,
           fecha: p.created_at || p.fecha_inicio,
+          id: p.id,
+          timestamp: p.created_at || p.fecha_inicio,
           icono: '💰',
           color: 'primary'
         }))
-      ].sort((a, b) => new Date(b.fecha) - new Date(a.fecha)).slice(0, 5);
+      ].sort((a, b) => {
+        // Ordenar por timestamp descendente (más reciente primero)
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
+        if (timeB !== timeA) return timeB - timeA;
+        // Si tienen el mismo timestamp, ordenar por ID descendente
+        return b.id - a.id;
+      }).slice(0, 5);
 
       setRecentActivity(actividadReciente);
 
@@ -125,7 +140,10 @@ function App({ onLogout }) {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('es-ES');
+    // Extraer solo la parte de fecha (YYYY-MM-DD) para evitar problemas de zona horaria
+    const [year, month, day] = dateString.split('T')[0].split('-');
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('es-ES');
   };
 
   const navegarA = (ruta) => {

@@ -57,7 +57,11 @@ const PerfilCliente = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('es-AR');
+    if (!dateString) return 'N/A';
+    // Extraer solo la parte de fecha (YYYY-MM-DD) para evitar problemas de zona horaria
+    const [year, month, day] = dateString.split('T')[0].split('-');
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('es-AR');
   };
 
   const formatCurrency = (amount) => {

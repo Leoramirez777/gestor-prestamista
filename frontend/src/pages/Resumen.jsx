@@ -59,9 +59,10 @@ function Resumen() {
       }).length;
 
       // Pagos de hoy
+      const hoyStr = hoy.toISOString().split('T')[0]; // Formato YYYY-MM-DD
       const pagosHoy = pagos.filter(p => {
-        const fechaPago = new Date(p.fecha_pago);
-        return fechaPago.toDateString() === hoy.toDateString();
+        const fechaPagoStr = p.fecha_pago.split('T')[0]; // Tomar solo la parte de fecha
+        return fechaPagoStr === hoyStr;
       }).length;
 
       // Clientes con préstamos activos

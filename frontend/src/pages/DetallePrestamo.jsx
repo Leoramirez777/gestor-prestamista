@@ -60,7 +60,10 @@ export default function DetallePrestamo() {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('es-ES');
+    // Extraer solo la parte de fecha (YYYY-MM-DD) para evitar problemas de zona horaria
+    const [year, month, day] = dateString.split('T')[0].split('-');
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString('es-ES');
   };
 
   const calcularIntereses = () => {
