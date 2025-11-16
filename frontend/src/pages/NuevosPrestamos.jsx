@@ -313,6 +313,9 @@ export default function NuevosPrestamos() {
                     </div>
                     <div className="row">
                       <div className="col-sm-6">
+                        <strong>Valor de cuota:</strong> ${(calcularMontoTotal() / parseInt(formData.plazo_dias)).toFixed(2)}
+                      </div>
+                      <div className="col-sm-6">
                         <strong>Fecha de vencimiento:</strong> {(() => {
                           const dias = formData.frecuencia_pago === 'semanal' 
                             ? parseInt(formData.plazo_dias) * 7 

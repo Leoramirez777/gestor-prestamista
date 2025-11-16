@@ -208,7 +208,7 @@ export default function NuevosClientes() {
                         Guardando...
                       </>
                     ) : (
-                      '💾 Guardar Cliente'
+                      ' Guardar Cliente'
                     )}
                   </button>
                   
@@ -226,7 +226,7 @@ export default function NuevosClientes() {
                       setMensaje({ tipo: '', texto: '' });
                     }}
                   >
-                    🗑️ Limpiar
+                    Limpiar
                   </button>
                 </div>
               </form>

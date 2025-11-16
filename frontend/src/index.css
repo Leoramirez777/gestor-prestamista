@@ -1,3 +1,14 @@
+/* Ocultar controles de incremento/decremento en inputs numéricos */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
 
 .hover-card {
   transition: all 0.3s ease;

@@ -5,28 +5,28 @@
 }
 
 .clientes-back-button {
-  border-color: #10b981;
-  color: #10b981;
+  border-color: #0d6efd;
+  color: #0d6efd;
 }
 
 .clientes-back-button:hover {
-  background-color: #10b981;
+  background-color: #0d6efd;
   color: white;
 }
 
 .clientes-spinner {
-  color: #10b981;
+  color: #0d6efd;
 }
 
 .cliente-card {
-  border-color: #10b981;
+  border-color: #0d6efd;
 }
 
 .cliente-avatar {
   width: 60px;
   height: 60px;
-  background-color: #10b98140;
-  color: #10b981;
+  background-color: #0d6efd40;
+  color: #0d6efd;
 }
 
 .cliente-name {
@@ -34,11 +34,11 @@
 }
 
 .cliente-prestamo-activo {
-  background-color: #10b981;
+  background-color: #10b951;
 }
 
 .cliente-ver-perfil {
-  background-color: #10b981;
+  background-color: #0d6efd;
   color: white;
   border: none;
 }

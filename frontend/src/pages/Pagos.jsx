@@ -406,12 +406,13 @@ export default function Pagos() {
                       {prestamos.map(prestamo => {
                         const cliente = clientes.find(c => c.id === prestamo.cliente_id);
                         const saldoPendiente = Number(prestamo.saldo_pendiente) || 0;
-                        // Solo mostrar préstamos con saldo pendiente
-                        if (saldoPendiente <= 0) return null;
+                        const estado = (prestamo.estado || '').toLowerCase();
+                        // Solo mostrar préstamos activos o impago con saldo pendiente
+                        if (saldoPendiente <= 0 || estado === 'refinanciado' || estado === 'pagado') return null;
                         
                         return (
                           <option key={prestamo.id} value={prestamo.id}>
-                            Préstamo #{prestamo.id} - {cliente?.nombre || 'Sin cliente'} - Saldo: {formatCurrency(saldoPendiente)}
+                            Préstamo #{prestamo.id} - {cliente?.nombre || 'Sin cliente'} - Saldo: {formatCurrency(prestamo.saldo_pendiente)}
                           </option>
                         );
                       })}

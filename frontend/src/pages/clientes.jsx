@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { fetchClientes } from "../api/clientes";
+import { fetchPrestamos } from "../api/prestamos";
 import "../styles/clientes.css";
 
 const Clientes = () => {
   const navigate = useNavigate();
   const [clientes, setClientes] = useState([]);
+  const [prestamos, setPrestamos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -13,8 +15,12 @@ const Clientes = () => {
     const loadClientes = async () => {
       try {
         setLoading(true);
-        const data = await fetchClientes();
-        setClientes(data);
+        const [clientesData, prestamosData] = await Promise.all([
+          fetchClientes(),
+          fetchPrestamos()
+        ]);
+        setClientes(clientesData);
+        setPrestamos(prestamosData || []);
       } catch (err) {
         setError(err.message);
         console.error("Error al cargar clientes:", err);
@@ -68,7 +74,7 @@ const Clientes = () => {
         <div className="row g-4">
           {clientes.map((cliente) => {
             // Verificar si tiene préstamo activo
-            const prestamoActivo = cliente.prestamos?.some(p => p.estado === "activo") || false;
+            const prestamoActivo = prestamos.some(p => p.cliente_id === cliente.id && p.estado === "activo");
             
             return (
               <div className="col-12 col-sm-6 col-lg-4 col-xl-3" key={cliente.id}>

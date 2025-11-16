@@ -13,7 +13,6 @@ import { logout } from './api/auth';
 
 function App({ onLogout }) {
   const navigate = useNavigate();
-  const [mensaje, setMensaje] = useState('');
   const [username, setUsername] = useState('');
   const [stats, setStats] = useState({
     totalClientes: 0,
@@ -30,11 +29,6 @@ function App({ onLogout }) {
     // Obtener usuario
     const storedUsername = localStorage.getItem('username');
     setUsername(storedUsername || 'Usuario');
-
-    // Verificar conexión con el backend
-    axios.get('http://localhost:8000')
-      .then(res => setMensaje(res.data.message))
-      .catch(err => console.error(err));
 
     // Cargar datos del dashboard
     loadDashboardData();
@@ -73,7 +67,7 @@ function App({ onLogout }) {
 
       // Calcular estadísticas básicas
       const totalMontosPrestados = prestamos.reduce((sum, p) => sum + (p.monto || 0), 0);
-      const prestamosActivos = prestamos.filter(p => (p.saldo_pendiente || 0) > 0).length;
+      const prestamosActivos = prestamos.filter(p => p.estado === 'activo').length;
       const hoy = new Date();
       const prestamosVencidos = prestamos.filter(p => {
         const fv = p.fecha_vencimiento ? new Date(p.fecha_vencimiento) : null;
@@ -201,7 +195,7 @@ function App({ onLogout }) {
       <div className="d-flex justify-content-between align-items-center mb-5">
         <div className="text-start">
           <h1 className="display-4 fw-bold text-dark mb-2">
-            Panel de Control - Gestor de Prestamista
+            Panel de Control 
           </h1>
           <p className="text-muted fs-5">Bienvenido, <strong>{username}</strong></p>
         </div>
@@ -214,10 +208,6 @@ function App({ onLogout }) {
           Cerrar Sesión
         </button>
       </div>
-        <p className="lead text-muted">
-          {mensaje || 'Sistema integral para la gestión de préstamos y clientes'}
-        </p>
-      
 
       {/* Sección principal con navegación, estadísticas y actividad */}
       <div className="row g-4">
