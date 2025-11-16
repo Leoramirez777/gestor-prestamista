@@ -140,6 +140,20 @@ function App({ onLogout }) {
     return date.toLocaleDateString('es-ES');
   };
 
+  // Helper para obtener etiquetas seguras para las tarjetas
+  const getCardLabels = (title) => {
+    if (!title || typeof title !== 'string') return { viewLabel: '', newLabel: '' };
+    const parts = title.trim().split(/\s+/);
+    // intentamos usar la tercera palabra si existe, si no usar la última
+    const viewLabel = parts[2] || parts[parts.length - 1] || '';
+    let newLabel = viewLabel || '';
+    // singularizar simple: quitar 's' final si existe
+    if (newLabel.toLowerCase().endsWith('s')) {
+      newLabel = newLabel.slice(0, -1);
+    }
+    return { viewLabel, newLabel };
+  };
+
   const navegarA = (ruta) => {
     navigate(ruta);
   };
@@ -176,6 +190,19 @@ function App({ onLogout }) {
       statLabel: 'Total'
     }
   ];
+
+  // Agregar nueva tarjeta: Empleados (morado, con emoji)
+  // Mover Resumen al área principal (en lugar de Empleados)
+  menuItems.push({
+    title: 'Resumen Financiero',
+    description: 'Ve las estadísticas completas y métricas del negocio',
+    icon: 'fas fa-chart-bar',
+    path: '/resumen',
+    newPath: '/resumen',
+    color: 'info',
+    stat: stats.montoTotalPrestado,
+    statLabel: 'Total en Sistema'
+  });
 
   if (loading) {
     return (
@@ -222,7 +249,11 @@ function App({ onLogout }) {
                   <div className="card-body p-4">
                     <div className="d-flex justify-content-between align-items-start mb-3">
                       <div className={`bg-${item.color} bg-opacity-10 p-3 rounded-3`}>
-                        <i className={`${item.icon} text-${item.color} fa-2x`}></i>
+                        {typeof item.icon === 'string' && (item.icon.startsWith('fa') || item.icon.includes('fa-')) ? (
+                          <i className={`${item.icon} text-${item.color} fa-2x`}></i>
+                        ) : (
+                          <span style={{ fontSize: '1.6rem' }}>{item.icon}</span>
+                        )}
                       </div>
                       <div className="text-end">
                         <h3 className={`text-${item.color} fw-bold mb-0`}>{item.stat}</h3>
@@ -236,66 +267,118 @@ function App({ onLogout }) {
                       {item.description}
                     </p>
                     <div className="d-grid gap-2">
-                      <button 
-                        className={`btn btn-${item.color} btn-lg fw-semibold`}
-                        onClick={() => navegarA(item.path)}
-                        style={{ borderRadius: '10px' }}
-                      >
-                        <i className={`${item.icon} me-2`}></i>
-                        Ver {item.title.split(' ')[2]}
-                      </button>
-                      <button 
-                        className={`btn btn-outline-${item.color} fw-semibold`}
-                        onClick={() => navegarA(item.newPath)}
-                        style={{ borderRadius: '10px' }}
-                      >
-                        <i className="fas fa-plus me-2"></i>
-                        Nuevo {item.title.split(' ')[2].slice(0, -1)}
-                      </button>
+                      {(() => {
+                        const { viewLabel, newLabel } = getCardLabels(item.title);
+                        return (
+                          <>
+                            <button
+                              className={`btn btn-${item.color} btn-lg fw-semibold`}
+                              onClick={() => navegarA(item.path)}
+                              style={{ borderRadius: '10px' }}
+                            >
+                              {typeof item.icon === 'string' && (item.icon.startsWith('fa') || item.icon.includes('fa-')) ? (
+                                <i className={`${item.icon} me-2`} />
+                              ) : (
+                                <span className="me-2" style={{ fontSize: '1.1rem' }}>{item.icon}</span>
+                              )}
+                              Ver {viewLabel}
+                            </button>
+                            <button
+                              className={`btn btn-outline-${item.color} fw-semibold`}
+                              onClick={() => navegarA(item.newPath)}
+                              style={{ borderRadius: '10px' }}
+                            >
+                              <i className="fas fa-plus me-2"></i>
+                              Nuevo {newLabel}
+                            </button>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
               </div>
             ))}
 
-            {/* Card de Resumen Estadísticas */}
+            {/* Card de Empleados (se coloca en la zona del Resumen) */}
             <div className="col-md-6">
               <div className="card h-100 shadow-sm border-0 bg-white" style={{ transition: 'transform 0.2s', cursor: 'pointer' }}
                    onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
                    onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0px)'}>
                 <div className="card-body p-4">
                   <div className="d-flex justify-content-between align-items-start mb-3">
-                    <div className="bg-info bg-opacity-10 p-3 rounded-3">
-                      <i className="fas fa-chart-bar text-info fa-2x"></i>
+                    <div className="bg-purple bg-opacity-10 p-3 rounded-3">
+                      <span style={{ fontSize: '1.6rem' }}>👤</span>
                     </div>
                     <div className="text-end">
-                      <h3 className="text-info fw-bold mb-0">{formatCurrency(stats.montoTotalPrestado)}</h3>
-                      <small className="text-muted fw-semibold">Total en Sistema</small>
+                      <h3 className="text-purple fw-bold mb-0">&nbsp;</h3>
+                      <small className="text-muted fw-semibold">Empleados</small>
                     </div>
                   </div>
                   <h5 className="card-title text-dark fw-bold mb-2">
-                    Resumen Financiero
+                    Gestión de Empleados
                   </h5>
                   <p className="card-text text-muted small mb-3">
-                    Ve las estadísticas completas y métricas del negocio
+                    Administra los empleados, roles y permisos dentro del sistema.
                   </p>
                   <div className="d-grid gap-2">
-                    <button 
-                      className="btn btn-info btn-lg fw-semibold"
-                      onClick={() => navegarA('/resumen')}
+                    <button
+                      className="btn btn-purple btn-lg fw-semibold"
+                      onClick={() => navegarA('/empleados')}
                       style={{ borderRadius: '10px' }}
                     >
-                      <i className="fas fa-chart-bar me-2"></i>
-                      Ver Resumen Completo
+                      <span className="me-2" style={{ fontSize: '1.1rem' }}>👤</span>
+                      Ver Empleados
                     </button>
-                    <button 
-                      className="btn btn-outline-info fw-semibold"
-                      onClick={loadDashboardData}
-                      disabled={loading}
+                    <button
+                      className="btn btn-outline-purple fw-semibold"
+                      onClick={() => navegarA('/empleados')}
                       style={{ borderRadius: '10px' }}
                     >
-                      <i className="fas fa-sync-alt me-2"></i>
-                      Actualizar Datos
+                      <i className="fas fa-user-plus me-2"></i>
+                      Nuevo Empleado
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {/* Card de Ajustes colocada junto al Resumen */}
+            <div className="col-md-6">
+              <div className="card h-100 shadow-sm border-0 bg-white" style={{ transition: 'transform 0.2s', cursor: 'pointer' }}
+                   onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
+                   onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0px)'}>
+                <div className="card-body p-4">
+                  <div className="d-flex justify-content-between align-items-start mb-3">
+                    <div className="bg-secondary bg-opacity-10 p-3 rounded-3">
+                      <i className="fas fa-cog text-secondary fa-2x"></i>
+                    </div>
+                    <div className="text-end">
+                      <h3 className="text-secondary fw-bold mb-0">&nbsp;</h3>
+                      <small className="text-muted fw-semibold">Ajustes</small>
+                    </div>
+                  </div>
+                  <h5 className="card-title text-dark fw-bold mb-2">
+                    Ajustes Generales
+                  </h5>
+                  <p className="card-text text-muted small mb-3">
+                    Configuraciones del sistema y seguridad (contraseña, notificaciones, respaldos)
+                  </p>
+                  <div className="d-grid gap-2">
+                    <button
+                      className="btn btn-secondary btn-lg fw-semibold"
+                      onClick={() => navegarA('/ajustes')}
+                      style={{ borderRadius: '10px' }}
+                    >
+                      <i className="fas fa-cog me-2"></i>
+                      Ver Ajustes
+                    </button>
+                    <button
+                      className="btn btn-outline-secondary fw-semibold"
+                      onClick={() => navegarA('/ajustes')}
+                      style={{ borderRadius: '10px' }}
+                    >
+                      <i className="fas fa-sliders-h me-2"></i>
+                      Configurar
                     </button>
                   </div>
                 </div>

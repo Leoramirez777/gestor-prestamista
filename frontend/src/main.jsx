@@ -15,6 +15,8 @@ import DetallePrestamo from './pages/DetallePrestamo.jsx'
 import NuevosPrestamos from './pages/NuevosPrestamos.jsx'
 import Pagos from './pages/Pagos.jsx'
 import Resumen from './pages/Resumen.jsx'
+import Ajustes from './pages/Ajustes.jsx'
+import Empleados from './pages/Empleados.jsx'
 import { isAuthenticated } from './api/auth.js'
 
 function AppRouter() {
@@ -121,6 +123,22 @@ function AppRouter() {
         element={
           <ProtectedRoute isAuth={isAuth}>
             <Resumen />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ajustes"
+        element={
+          <ProtectedRoute isAuth={isAuth}>
+            <Ajustes />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/empleados"
+        element={
+          <ProtectedRoute isAuth={isAuth}>
+            <Empleados />
           </ProtectedRoute>
         }
       />

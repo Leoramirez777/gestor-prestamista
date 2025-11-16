@@ -2,3 +2,20 @@
   width: 80px;
   height: 80px;
 }
+
+/* Colores personalizados */
+.bg-purple {
+  background-color: #6f42c1 !important;
+}
+.text-purple {
+  color: #6f42c1 !important;
+}
+.btn-purple {
+  background-color: #6f42c1;
+  color: #fff;
+  border-color: #6f42c1;
+}
+.btn-outline-purple {
+  color: #6f42c1;
+  border-color: #6f42c1;
+}
