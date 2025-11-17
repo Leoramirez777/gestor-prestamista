@@ -21,7 +21,10 @@ function App({ onLogout }) {
     totalPagos: 0,
     montoTotalPrestado: 0,
     prestamosActivos: 0,
-    prestamosVencidos: 0
+    prestamosVencidos: 0,
+    tasaRecaudo: 0,
+    averageLoanSize: 0,
+    ticketPromedioPago: 0
   });
   const [loading, setLoading] = useState(true);
   const [recentActivity, setRecentActivity] = useState([]);
@@ -75,7 +78,10 @@ function App({ onLogout }) {
           totalPagos: summary.total_pagos,
           montoTotalPrestado: summary.monto_total_prestado,
           prestamosActivos: summary.prestamos_activos,
-          prestamosVencidos: summary.prestamos_vencidos
+          prestamosVencidos: summary.prestamos_vencidos,
+          tasaRecaudo: summary.tasa_recaudo,
+          averageLoanSize: summary.average_loan_size,
+          ticketPromedioPago: summary.ticket_promedio_pago
         });
       }
 
@@ -199,6 +205,7 @@ function App({ onLogout }) {
     stat: stats.montoTotalPrestado,
     statLabel: 'Total en Sistema'
   });
+
 
   if (loading) {
     return (

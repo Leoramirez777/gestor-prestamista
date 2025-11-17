@@ -18,7 +18,10 @@ function Resumen() {
     prestamosActivos: 0,
     prestamosVencidos: 0,
     pagosHoy: 0,
-    clientesActivos: 0
+    clientesActivos: 0,
+    tasaRecaudo: 0,
+    averageLoanSize: 0,
+    ticketPromedioPago: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -41,7 +44,10 @@ function Resumen() {
           prestamosActivos: summary.prestamos_activos,
           prestamosVencidos: summary.prestamos_vencidos,
           pagosHoy: summary.pagos_hoy,
-          clientesActivos: summary.clientes_activos
+          clientesActivos: summary.clientes_activos,
+          tasaRecaudo: summary.tasa_recaudo,
+          averageLoanSize: summary.average_loan_size,
+          ticketPromedioPago: summary.ticket_promedio_pago
         });
       }
     } catch (error) {
@@ -132,17 +138,24 @@ function Resumen() {
           </div>
 
           <div className="col-12 col-md-6 col-lg-3">
-            <div className="stat-card stat-card-info">
+            <div className="stat-card stat-card-secondary">
               <div className="stat-card-body">
                 <div className="stat-icon">
-                  <i className="fas fa-percentage"></i>
+                  <i className="fas fa-balance-scale"></i>
                 </div>
-                <h2 className="stat-value">
-                  {stats.montoTotalPrestado > 0 
-                    ? Math.round((stats.montoTotalRecaudado / stats.montoTotalPrestado) * 100) 
-                    : 0}%
-                </h2>
-                <p className="stat-label">Tasa de Recaudo</p>
+                <h2 className="stat-value">{formatCurrency(stats.averageLoanSize)}</h2>
+                <p className="stat-label">Préstamo Promedio</p>
+              </div>
+            </div>
+          </div>
+          <div className="col-12 col-md-6 col-lg-3">
+            <div className="stat-card stat-card-dark">
+              <div className="stat-card-body">
+                <div className="stat-icon">
+                  <i className="fas fa-receipt"></i>
+                </div>
+                <h2 className="stat-value">{formatCurrency(stats.ticketPromedioPago)}</h2>
+                <p className="stat-label">Ticket Promedio Pago</p>
               </div>
             </div>
           </div>
