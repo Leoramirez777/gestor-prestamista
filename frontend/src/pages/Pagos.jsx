@@ -43,6 +43,12 @@ export default function Pagos() {
         console.log('Préstamos cargados:', prestamosData);
         console.log('Location state:', location.state);
         
+        // Si viene con parámetro nuevo=true en la URL, abrir modal
+        const searchParams = new URLSearchParams(location.search);
+        if (searchParams.get('nuevo') === 'true') {
+          setShowModal(true);
+        }
+        
         // Si viene desde préstamos con un préstamo específico
         if (location.state?.prestamoId) {
           console.log('Abriendo modal con préstamo ID:', location.state.prestamoId);
@@ -63,7 +69,7 @@ export default function Pagos() {
     };
     
     loadData();
-  }, [location.state]);
+  }, [location.state, location.search]);
 
   const getPrestamoInfo = (prestamoId) => {
     const prestamo = prestamos.find(p => p.id === prestamoId);
@@ -401,6 +407,7 @@ export default function Pagos() {
                       value={formData.prestamo_id}
                       onChange={handleFormChange}
                       required
+                      autoFocus
                     >
                       <option value="">Seleccionar préstamo...</option>
                       {prestamos.map(prestamo => {
