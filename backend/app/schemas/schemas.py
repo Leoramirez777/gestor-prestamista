@@ -106,3 +106,11 @@ class SummaryMetrics(BaseModel):
     average_loan_size: float
     ticket_promedio_pago: float
     clientes_activos: int
+
+
+# ===== AMORTIZACIÓN =====
+class Cuota(BaseModel):
+    numero: int
+    fecha: str  # ISO date
+    monto: float
+    estado: str  # Pagado, Vencido, Pendiente

@@ -62,3 +62,12 @@ export async function refinanciarPrestamo(id, payload) {
     handleApiError(err);
   }
 }
+
+export async function fetchAmortizacion(id) {
+  try {
+    const { data } = await api.get(`/api/prestamos/${id}/amortizacion`);
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

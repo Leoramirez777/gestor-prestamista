@@ -4,7 +4,8 @@ from typing import List
 from datetime import timedelta, date
 from app.database.database import get_db
 from app.models.models import Prestamo, Cliente
-from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate
+from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate, Cuota
+from app.amortization_service import generar_amortizacion
 
 router = APIRouter()
 
@@ -151,3 +152,14 @@ def refinanciar_prestamo(prestamo_id: int, params: RefinanciacionCreate, db: Ses
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+
+@router.get("/{prestamo_id}/amortizacion", response_model=List[Cuota])
+def get_amortizacion(prestamo_id: int, db: Session = Depends(get_db)):
+    """Obtener la tabla de amortización de un préstamo"""
+    prestamo = db.query(Prestamo).filter(Prestamo.id == prestamo_id).first()
+    if not prestamo:
+        raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+    
+    cuotas = generar_amortizacion(prestamo, db)
+    return cuotas

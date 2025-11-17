@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchPrestamos, refinanciarPrestamo } from '../api/prestamos';
+import { fetchPrestamos, refinanciarPrestamo, fetchAmortizacion } from '../api/prestamos';
 import { fetchCliente } from '../api/clientes';
 import { fetchPagosByPrestamo } from '../api/pagos';
 import '../styles/DetallePrestamo.css';
@@ -11,6 +11,7 @@ export default function DetallePrestamo() {
   const [prestamo, setPrestamo] = useState(null);
   const [cliente, setCliente] = useState(null);
   const [pagos, setPagos] = useState([]);
+  const [amortizacion, setAmortizacion] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showRefi, setShowRefi] = useState(false);
@@ -39,14 +40,16 @@ export default function DetallePrestamo() {
 
         setPrestamo(prestamoEncontrado);
 
-        // Cargar datos del cliente y pagos
-        const [clienteData, pagosData] = await Promise.all([
+        // Cargar datos del cliente, pagos y amortización
+        const [clienteData, pagosData, amortizacionData] = await Promise.all([
           fetchCliente(prestamoEncontrado.cliente_id),
-          fetchPagosByPrestamo(id)
+          fetchPagosByPrestamo(id),
+          fetchAmortizacion(id)
         ]);
 
         setCliente(clienteData);
         setPagos(pagosData || []);
+        setAmortizacion(amortizacionData || []);
       } catch (err) {
         console.error('Error al cargar datos:', err);
         setError('Error al cargar los datos del préstamo');
@@ -151,75 +154,6 @@ export default function DetallePrestamo() {
     } finally {
       setSubmittingRefi(false);
     }
-  };
-
-  // Amortización: genera fechas esperadas y estado de cada cuota
-  const parseOnlyDate = (dateString) => {
-    if (!dateString) return new Date();
-    const [y, m, d] = dateString.split('T')[0].split('-').map(Number);
-    return new Date(y, (m || 1) - 1, d || 1);
-  };
-
-  const addDays = (date, days) => {
-    const d = new Date(date);
-    d.setDate(d.getDate() + days);
-    return d;
-  };
-
-  const addMonths = (date, months) => {
-    const d = new Date(date);
-    d.setMonth(d.getMonth() + months);
-    return d;
-  };
-
-  const generarAmortizacion = () => {
-    if (!prestamo) return [];
-    const hoy = new Date();
-    const cuotasPagas = pagos.length;
-
-    // Número de cuotas según frecuencia
-    let numeroCuotas = prestamo.cuotas_totales && prestamo.cuotas_totales > 0
-      ? prestamo.cuotas_totales
-      : (prestamo.frecuencia_pago === 'semanal'
-          ? Math.ceil(prestamo.plazo_dias / 7)
-          : prestamo.frecuencia_pago === 'mensual'
-            ? Math.ceil(prestamo.plazo_dias / 30)
-            : prestamo.plazo_dias);
-
-    const valorCuota = prestamo.valor_cuota && prestamo.valor_cuota > 0
-      ? prestamo.valor_cuota
-      : calcularValorCuota();
-    const inicio = parseOnlyDate(prestamo.fecha_inicio);
-
-    const rows = [];
-    for (let i = 1; i <= numeroCuotas; i++) {
-      let fecha;
-      if (prestamo.frecuencia_pago === 'semanal') {
-        // La primera cuota es una semana después
-        fecha = addDays(inicio, i * 7);
-      } else if (prestamo.frecuencia_pago === 'mensual') {
-        // La primera cuota es un mes después
-        fecha = addMonths(inicio, i);
-      } else {
-        // Fallback diario: la primera cuota es al día siguiente
-        fecha = addDays(inicio, i);
-      }
-
-      let estado = 'Pendiente';
-      if ((prestamo.estado || '').toLowerCase() === 'pagado' || i <= cuotasPagas) {
-        estado = 'Pagado';
-      } else if (fecha < hoy) {
-        estado = 'Vencido';
-      }
-
-      rows.push({
-        numero: i,
-        fecha,
-        monto: valorCuota,
-        estado
-      });
-    }
-    return rows;
   };
 
   if (loading) {
@@ -385,10 +319,10 @@ export default function DetallePrestamo() {
                 </tr>
               </thead>
               <tbody>
-                {generarAmortizacion().map((fila) => (
+                {amortizacion.map((fila) => (
                   <tr key={fila.numero}>
                     <td>{fila.numero}</td>
-                    <td>{formatDate(fila.fecha.toISOString())}</td>
+                    <td>{formatDate(fila.fecha)}</td>
                     <td>{formatCurrency(fila.monto)}</td>
                     <td className={
                       fila.estado === 'Pagado' ? 'text-success' :
