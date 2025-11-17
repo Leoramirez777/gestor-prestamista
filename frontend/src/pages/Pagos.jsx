@@ -230,6 +230,8 @@ export default function Pagos() {
 
   const totalPagos = pagos.reduce((sum, pago) => sum + (pago.monto || 0), 0);
   const pagosHoy = pagos.filter(p => new Date(p.fecha_pago).toDateString() === new Date().toDateString());
+  const pagosOrdenados = [...pagos].sort((a,b) => b.id - a.id);
+  const ultimoIdPago = pagosOrdenados.length ? pagosOrdenados[0].id : null;
 
   return (
     <div className="container my-5">
@@ -266,7 +268,7 @@ export default function Pagos() {
 
       {/* Estadísticas */}
       <div className="row mb-4">
-        <div className="col-md-4">
+        <div className="col-md-3">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
               <h5 className="card-title text-primary">{pagos.length}</h5>
@@ -274,7 +276,7 @@ export default function Pagos() {
             </div>
           </div>
         </div>
-        <div className="col-md-4">
+        <div className="col-md-3">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
               <h5 className="card-title text-success">
@@ -284,11 +286,19 @@ export default function Pagos() {
             </div>
           </div>
         </div>
-        <div className="col-md-4">
+        <div className="col-md-3">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
               <h5 className="card-title text-warning">{pagosHoy.length}</h5>
               <p className="card-text small">Pagos Hoy</p>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="card text-center border-0 bg-light">
+            <div className="card-body">
+              <h5 className="card-title text-dark">{ultimoIdPago ? `#${ultimoIdPago}` : '-'}</h5>
+              <p className="card-text small">ID más reciente</p>
             </div>
           </div>
         </div>
@@ -330,7 +340,7 @@ export default function Pagos() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagos.map((pago) => {
+                  {pagosOrdenados.map((pago) => {
                     const prestamoInfo = getPrestamoInfo(pago.prestamo_id);
                     return (
                       <tr key={pago.id}>

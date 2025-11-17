@@ -9,6 +9,7 @@ import "./styles/App.css";
 import { fetchClientes } from './api/clientes';
 import { fetchPrestamos } from './api/prestamos';
 import { fetchPagos } from './api/pagos';
+import { fetchMetricsSummary } from './api/metrics';
 import { logout } from './api/auth';
 
 function App({ onLogout }) {
@@ -53,35 +54,30 @@ function App({ onLogout }) {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Cargar todos los datos
-      const [clientesData, prestamosData, pagosData] = await Promise.all([
+      // Petición agregada
+      const summaryPromise = fetchMetricsSummary();
+      // Datos crudos para actividad
+      const [clientesData, prestamosData, pagosData, summary] = await Promise.all([
         fetchClientes(),
         fetchPrestamos(),
-        fetchPagos()
+        fetchPagos(),
+        summaryPromise
       ]);
 
       const clientes = clientesData || [];
       const prestamos = prestamosData || [];
       const pagos = pagosData || [];
 
-      // Calcular estadísticas básicas
-      const totalMontosPrestados = prestamos.reduce((sum, p) => sum + (p.monto || 0), 0);
-      const prestamosActivos = prestamos.filter(p => p.estado === 'activo').length;
-      const hoy = new Date();
-      const prestamosVencidos = prestamos.filter(p => {
-        const fv = p.fecha_vencimiento ? new Date(p.fecha_vencimiento) : null;
-        return fv && fv < hoy && (p.saldo_pendiente || 0) > 0;
-      }).length;
-
-      setStats({
-        totalClientes: clientes.length,
-        totalPrestamos: prestamos.length,
-        totalPagos: pagos.length,
-        montoTotalPrestado: totalMontosPrestados,
-        prestamosActivos,
-        prestamosVencidos
-      });
+      if (summary) {
+        setStats({
+          totalClientes: summary.total_clientes,
+          totalPrestamos: summary.total_prestamos,
+          totalPagos: summary.total_pagos,
+          montoTotalPrestado: summary.monto_total_prestado,
+          prestamosActivos: summary.prestamos_activos,
+          prestamosVencidos: summary.prestamos_vencidos
+        });
+      }
 
       // Actividad reciente (últimos 5 items)
       // Primero ordenar pagos por ID descendente (más reciente primero)
@@ -119,7 +115,7 @@ function App({ onLogout }) {
       setRecentActivity(actividadReciente);
 
     } catch (error) {
-      console.error('Error al cargar datos del dashboard:', error);
+      console.error('Error al cargar datos/summary del dashboard:', error);
     } finally {
       setLoading(false);
     }

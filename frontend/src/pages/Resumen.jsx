@@ -4,9 +4,7 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "../styles/Resumen.css";
 
 // Importar APIs
-import { fetchClientes } from '../api/clientes';
-import { fetchPrestamos } from '../api/prestamos';
-import { fetchPagos } from '../api/pagos';
+import { fetchMetricsSummary } from '../api/metrics';
 
 function Resumen() {
   const navigate = useNavigate();
@@ -31,60 +29,23 @@ function Resumen() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      
-      // Cargar todos los datos
-      const [clientesData, prestamosData, pagosData] = await Promise.all([
-        fetchClientes(),
-        fetchPrestamos(),
-        fetchPagos()
-      ]);
-
-      const clientes = clientesData || [];
-      const prestamos = prestamosData || [];
-      const pagos = pagosData || [];
-
-      // Calcular estadísticas
-      const totalMontosPrestados = prestamos.reduce((sum, p) => sum + (p.monto || 0), 0);
-      const totalMontosRecaudados = pagos.reduce((sum, p) => sum + (p.monto || 0), 0);
-      const saldoPendienteTotal = prestamos.reduce((sum, p) => sum + (p.saldo_pendiente || 0), 0);
-      
-      // Préstamos activos (con saldo pendiente)
-      const prestamosActivos = prestamos.filter(p => (p.saldo_pendiente || 0) > 0).length;
-      
-      // Préstamos vencidos (fecha vencimiento < hoy y saldo pendiente > 0)
-      const hoy = new Date();
-      const prestamosVencidos = prestamos.filter(p => {
-        const fechaVencimiento = new Date(p.fecha_vencimiento);
-        return fechaVencimiento < hoy && (p.saldo_pendiente || 0) > 0;
-      }).length;
-
-      // Pagos de hoy
-      const hoyStr = hoy.toISOString().split('T')[0]; // Formato YYYY-MM-DD
-      const pagosHoy = pagos.filter(p => {
-        const fechaPagoStr = p.fecha_pago.split('T')[0]; // Tomar solo la parte de fecha
-        return fechaPagoStr === hoyStr;
-      }).length;
-
-      // Clientes con préstamos activos
-      const clientesConPrestamosActivos = new Set(
-        prestamos.filter(p => (p.saldo_pendiente || 0) > 0).map(p => p.cliente_id)
-      ).size;
-
-      setStats({
-        totalClientes: clientes.length,
-        totalPrestamos: prestamos.length,
-        totalPagos: pagos.length,
-        montoTotalPrestado: totalMontosPrestados,
-        montoTotalRecaudado: totalMontosRecaudados,
-        saldoPendiente: saldoPendienteTotal,
-        prestamosActivos,
-        prestamosVencidos,
-        pagosHoy,
-        clientesActivos: clientesConPrestamosActivos
-      });
-
+      const summary = await fetchMetricsSummary();
+      if (summary) {
+        setStats({
+          totalClientes: summary.total_clientes,
+          totalPrestamos: summary.total_prestamos,
+          totalPagos: summary.total_pagos,
+          montoTotalPrestado: summary.monto_total_prestado,
+            montoTotalRecaudado: summary.monto_total_recaudado,
+          saldoPendiente: summary.saldo_pendiente_total,
+          prestamosActivos: summary.prestamos_activos,
+          prestamosVencidos: summary.prestamos_vencidos,
+          pagosHoy: summary.pagos_hoy,
+          clientesActivos: summary.clientes_activos
+        });
+      }
     } catch (error) {
-      console.error('Error al cargar datos del dashboard:', error);
+      console.error('Error al cargar métricas del backend:', error);
     } finally {
       setLoading(false);
     }

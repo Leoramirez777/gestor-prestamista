@@ -74,8 +74,12 @@ export default function Prestamos() {
     return date.toLocaleDateString('es-ES');
   };
 
-  // Filtrar préstamos según los filtros
-  const prestamosFiltrados = prestamos.filter((prestamo) => {
+  // Orden descendente por ID (más recientes primero)
+  const prestamosOrdenados = [...prestamos].sort((a,b) => b.id - a.id);
+  const ultimoIdPrestamo = prestamosOrdenados.length ? prestamosOrdenados[0].id : null;
+
+  // Filtrar préstamos según los filtros (aplicado después del orden)
+  const prestamosFiltrados = prestamosOrdenados.filter((prestamo) => {
     // Nombre de cliente
     const cliente = clientes.find(c => c.id === prestamo.cliente_id);
     const nombreCliente = cliente ? cliente.nombre.toLowerCase() : "";
@@ -244,7 +248,7 @@ export default function Prestamos() {
         </div>
       </div>
       <div className="row mb-4">
-        <div className="col-md-3">
+        <div className="col-md-2">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
               <h5 className="card-title text-primary">{prestamos.length}</h5>
@@ -252,7 +256,7 @@ export default function Prestamos() {
             </div>
           </div>
         </div>
-        <div className="col-md-3">
+        <div className="col-md-2">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
               <h5 className="card-title text-success">{prestamos.filter(p => p.estado === 'activo').length}</h5>
@@ -260,7 +264,7 @@ export default function Prestamos() {
             </div>
           </div>
         </div>
-        <div className="col-md-3">
+        <div className="col-md-2">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
               <h5 className="card-title text-primary">{formatCurrency(prestamos.reduce((sum, p) => sum + (p.monto || 0), 0))}</h5>
@@ -268,11 +272,19 @@ export default function Prestamos() {
             </div>
           </div>
         </div>
-        <div className="col-md-3">
+        <div className="col-md-2">
           <div className="card text-center border-0 bg-light">
             <div className="card-body">
               <h5 className="card-title text-dark">{formatCurrency(prestamos.reduce((sum, p) => sum + (p.saldo_pendiente || 0), 0))}</h5>
               <p className="card-text small">Saldo Pendiente</p>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-2">
+          <div className="card text-center border-0 bg-light">
+            <div className="card-body">
+              <h5 className="card-title text-dark">{ultimoIdPrestamo ? `#${ultimoIdPrestamo}` : '-'}</h5>
+              <p className="card-text small">ID más reciente</p>
             </div>
           </div>
         </div>

@@ -30,6 +30,7 @@ class Cliente(ClienteBase):
         from_attributes = True
 
 
+
 # ===== PRÉSTAMOS =====
 class PrestamoBase(BaseModel):
     cliente_id: int
@@ -87,3 +88,21 @@ class Pago(PagoBase):
     
     class Config:
         from_attributes = True
+
+
+# ===== METRICAS =====
+class SummaryMetrics(BaseModel):
+    timestamp: str
+    total_clientes: int
+    total_prestamos: int
+    total_pagos: int
+    monto_total_prestado: float
+    monto_total_recaudado: float
+    saldo_pendiente_total: float
+    prestamos_activos: int
+    prestamos_vencidos: int
+    pagos_hoy: int
+    tasa_recaudo: float
+    average_loan_size: float
+    ticket_promedio_pago: float
+    clientes_activos: int
