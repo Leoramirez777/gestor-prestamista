@@ -113,11 +113,6 @@ export default function NuevosPrestamos() {
         frecuencia_pago: 'semanal'
       });
       
-      // Redirigir después de un tiempo
-      setTimeout(() => {
-        navigate('/prestamos');
-      }, 2000);
-      
     } catch (error) {
       console.error('Error al crear préstamo:', error);
       let errorMessage = 'Error al crear el préstamo.';

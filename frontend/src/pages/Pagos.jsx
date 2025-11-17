@@ -447,11 +447,32 @@ export default function Pagos() {
                           <option value="parcial">Pago Parcial</option>
                           <option value="total">Pago Total del Saldo</option>
                         </select>
-                        <div className="form-text">
-                          {formData.tipo_pago === 'cuota' && `Cuota actual: ${formatCurrency((prestamoSeleccionado.valor_cuota || 0) + (prestamoSeleccionado.saldo_cuota || 0))}`}
-                          {formData.tipo_pago === 'total' && `Saldo total: ${formatCurrency(prestamoSeleccionado.saldo_pendiente || 0)}`}
-                          {formData.tipo_pago === 'parcial' && 'Ingrese el monto que desea pagar'}
-                        </div>
+                        {formData.tipo_pago === 'cuota' && (
+                          <div className="mt-2">
+                            <div className="alert alert-light border mb-2 py-2">
+                              <small className="text-muted d-block mb-1">Valor de Cuota Establecida:</small>
+                              <strong className="text-dark">{formatCurrency(prestamoSeleccionado.valor_cuota || 0)}</strong>
+                            </div>
+                            {prestamoSeleccionado.saldo_cuota !== 0 && (
+                              <div className={`alert ${(prestamoSeleccionado.saldo_cuota || 0) > 0 ? 'alert-danger' : 'alert-success'} border mb-0 py-2`}>
+                                <small className="text-muted d-block mb-1">
+                                  {(prestamoSeleccionado.saldo_cuota || 0) > 0 ? 'Saldo Negativo:' : 'Saldo Positivo:'}
+                                </small>
+                                <strong>{formatCurrency(Math.abs(prestamoSeleccionado.saldo_cuota || 0))}</strong>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {formData.tipo_pago === 'total' && (
+                          <div className="form-text">
+                            Saldo total: {formatCurrency(prestamoSeleccionado.saldo_pendiente || 0)}
+                          </div>
+                        )}
+                        {formData.tipo_pago === 'parcial' && (
+                          <div className="form-text">
+                            Ingrese el monto que desea pagar
+                          </div>
+                        )}
                       </div>
 
                       {formData.tipo_pago === 'parcial' && (
