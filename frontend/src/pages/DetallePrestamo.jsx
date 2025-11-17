@@ -94,6 +94,7 @@ export default function DetallePrestamo() {
   };
 
   const calcularCuotasPagadas = () => {
+    if (prestamo?.cuotas_pagadas && prestamo.cuotas_pagadas > 0) return prestamo.cuotas_pagadas;
     return pagos.length;
   };
 
@@ -150,6 +151,75 @@ export default function DetallePrestamo() {
     } finally {
       setSubmittingRefi(false);
     }
+  };
+
+  // Amortización: genera fechas esperadas y estado de cada cuota
+  const parseOnlyDate = (dateString) => {
+    if (!dateString) return new Date();
+    const [y, m, d] = dateString.split('T')[0].split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  };
+
+  const addDays = (date, days) => {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  };
+
+  const addMonths = (date, months) => {
+    const d = new Date(date);
+    d.setMonth(d.getMonth() + months);
+    return d;
+  };
+
+  const generarAmortizacion = () => {
+    if (!prestamo) return [];
+    const hoy = new Date();
+    const cuotasPagas = pagos.length;
+
+    // Número de cuotas según frecuencia
+    let numeroCuotas = prestamo.cuotas_totales && prestamo.cuotas_totales > 0
+      ? prestamo.cuotas_totales
+      : (prestamo.frecuencia_pago === 'semanal'
+          ? Math.ceil(prestamo.plazo_dias / 7)
+          : prestamo.frecuencia_pago === 'mensual'
+            ? Math.ceil(prestamo.plazo_dias / 30)
+            : prestamo.plazo_dias);
+
+    const valorCuota = prestamo.valor_cuota && prestamo.valor_cuota > 0
+      ? prestamo.valor_cuota
+      : calcularValorCuota();
+    const inicio = parseOnlyDate(prestamo.fecha_inicio);
+
+    const rows = [];
+    for (let i = 1; i <= numeroCuotas; i++) {
+      let fecha;
+      if (prestamo.frecuencia_pago === 'semanal') {
+        // La primera cuota es una semana después
+        fecha = addDays(inicio, i * 7);
+      } else if (prestamo.frecuencia_pago === 'mensual') {
+        // La primera cuota es un mes después
+        fecha = addMonths(inicio, i);
+      } else {
+        // Fallback diario: la primera cuota es al día siguiente
+        fecha = addDays(inicio, i);
+      }
+
+      let estado = 'Pendiente';
+      if ((prestamo.estado || '').toLowerCase() === 'pagado' || i <= cuotasPagas) {
+        estado = 'Pagado';
+      } else if (fecha < hoy) {
+        estado = 'Vencido';
+      }
+
+      rows.push({
+        numero: i,
+        fecha,
+        monto: valorCuota,
+        estado
+      });
+    }
+    return rows;
   };
 
   if (loading) {
@@ -250,16 +320,18 @@ export default function DetallePrestamo() {
           <div className="info-card">
             <label className="info-label">Cantidad de Cuotas:</label>
             <p className="info-value text-warning">
-              {prestamo.frecuencia_pago === 'semanal' 
-                ? Math.ceil(prestamo.plazo_dias / 7)
-                : Math.ceil(prestamo.plazo_dias / 30)}
+              {prestamo.cuotas_totales && prestamo.cuotas_totales > 0
+                ? prestamo.cuotas_totales
+                : (prestamo.frecuencia_pago === 'semanal'
+                    ? Math.ceil(prestamo.plazo_dias / 7)
+                    : Math.ceil(prestamo.plazo_dias / 30))}
             </p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Valor de Cuota:</label>
-            <p className="info-value text-warning">{formatCurrency(calcularValorCuota())}</p>
+            <p className="info-value text-warning">{formatCurrency(prestamo.valor_cuota && prestamo.valor_cuota > 0 ? prestamo.valor_cuota : calcularValorCuota())}</p>
           </div>
         </div>
         <div className="col-md-6">
@@ -294,6 +366,46 @@ export default function DetallePrestamo() {
           </button>
         </div>
       )}
+
+      {/* Historial de pagos */}
+      {/* Amortización del préstamo */}
+      <div className="card shadow-sm mb-4">
+        <div className="card-header bg-success text-white">
+          <h5 className="mb-0">Amortización del Préstamo</h5>
+        </div>
+        <div className="card-body">
+          <div className="table-responsive">
+            <table className="table table-hover">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Fecha</th>
+                  <th>Monto</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {generarAmortizacion().map((fila) => (
+                  <tr key={fila.numero}>
+                    <td>{fila.numero}</td>
+                    <td>{formatDate(fila.fecha.toISOString())}</td>
+                    <td>{formatCurrency(fila.monto)}</td>
+                    <td className={
+                      fila.estado === 'Pagado' ? 'text-success' :
+                      fila.estado === 'Vencido' ? 'text-danger' : 'text-warning'
+                    }>
+                      {fila.estado}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="small text-muted">
+            La fecha mostrada es la esperada; si no se pagó y ya pasó, se marca como <strong>Vencido</strong>.
+          </div>
+        </div>
+      </div>
 
       {/* Historial de pagos */}
       {pagos.length > 0 && (
