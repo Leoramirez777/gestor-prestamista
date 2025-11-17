@@ -72,6 +72,8 @@ def seed(db: Session):
 
     db.commit()
 
+    # (No se crean usuarios en este seed)
+
 
 if __name__ == "__main__":
     db = SessionLocal()
