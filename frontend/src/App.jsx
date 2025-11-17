@@ -184,7 +184,7 @@ function App({ onLogout }) {
       description: 'Registrar y seguir pagos realizados',
       icon: 'fas fa-money-bill-wave',
       path: '/pagos',
-      newPath: '/pagos',
+      newPath: '/pagos?nuevo=true',
       color: 'warning',
       stat: stats.totalPagos,
       statLabel: 'Total'
