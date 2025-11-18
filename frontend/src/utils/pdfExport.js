@@ -321,12 +321,23 @@ function numeroALetrasSimple(n) {
   } catch { return ''; }
 }
 
-export async function exportContratoPrestamoFormatoPDF({ prestamo, cliente, lugar = '', fecha = new Date() }) {
+export async function exportContratoPrestamoFormatoPDF({ prestamo, cliente, vendedor = null, adminData = null, lugar = '', fecha = new Date() }) {
   const jsPDF = await getJsPdf();
   const doc = new jsPDF('p','mm','a4');
 
   const formatDate = (d) => new Date(d).toLocaleDateString('es-ES', { day:'2-digit', month:'long', year:'numeric' });
   const moneda = (v) => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(v||0);
+
+  // Determinar quién es el prestamista (vendedor o admin)
+  const prestamista = vendedor ? {
+    nombre: vendedor.empleado_nombre,
+    dni: vendedor.dni || 'N/A',
+    domicilio: vendedor.direccion || 'N/A'
+  } : {
+    nombre: adminData?.nombre_completo || 'Administrador',
+    dni: adminData?.dni || 'N/A',
+    domicilio: adminData?.direccion || 'N/A'
+  };
 
   // Título
   doc.setFontSize(18); doc.setFont(undefined,'bold');
@@ -338,8 +349,8 @@ export async function exportContratoPrestamoFormatoPDF({ prestamo, cliente, luga
   const left = 20, width = 170, lineH = 8;
   let y = 50;
 
-  const linea1 = `Yo ${cliente?.nombre || '________________'} con DNI Nº ${cliente?.dni || '______________'} y con domicilio ${cliente?.direccion || '__________________________'} mediante este documento hago préstamo de dinero la cantidad de ${moneda(prestamo?.monto)}.`;
-  const linea2 = `Al señor(a) ${cliente?.nombre || '________________'} comprometiéndose a devolver el préstamo hasta el ${formatDate(prestamo?.fecha_vencimiento || fecha)} pagando mensualmente el interés del ${prestamo?.tasa_interes ?? 0}%.`;
+  const linea1 = `Yo ${prestamista.nombre} con DNI Nº ${prestamista.dni} y con domicilio ${prestamista.domicilio} mediante este documento hago préstamo de dinero la cantidad de ${moneda(prestamo?.monto)}.`;
+  const linea2 = `Al señor(a) ${cliente?.nombre || '________________'} con DNI Nº ${cliente?.dni || '______________'} y con domicilio ${cliente?.direccion || '__________________________'} comprometiéndose a devolver el préstamo hasta el ${formatDate(prestamo?.fecha_vencimiento || fecha)} pagando mensualmente el interés del ${prestamo?.tasa_interes ?? 0}%.`;
 
   const textoParrafos = [linea1, linea2];
   textoParrafos.forEach(p => {

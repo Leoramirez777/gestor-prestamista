@@ -53,10 +53,17 @@ export default function DetallePrestamo() {
         setPagos(pagosData || []);
         setAmortizacion(amortizacionData || []);
 
-        // Cargar comisión de vendedor (si existe)
+        // Cargar comisión de vendedor (si existe) + datos completos del empleado
         try {
           const vend = await fetchPrestamoVendedor(id);
-          if (vend) setVendedor(vend);
+          if (vend && vend.empleado_id) {
+            // Cargar datos completos del empleado
+            const { fetchEmpleado } = await import('../api/empleados');
+            const empleadoCompleto = await fetchEmpleado(vend.empleado_id);
+            setVendedor({ ...vend, ...empleadoCompleto }); // fusionar comisión + datos personales
+          } else if (vend) {
+            setVendedor(vend);
+          }
         } catch (e) {
           // 404 u otro error: no hay comisión de vendedor, continuar
         }
@@ -207,7 +214,19 @@ export default function DetallePrestamo() {
           </button>
           <button 
             className="btn btn-outline-primary" 
-            onClick={() => exportContratoPrestamoFormatoPDF({ prestamo, cliente, lugar: '', fecha: new Date() })}
+            onClick={async () => {
+              // Obtener datos del admin si es necesario
+              let adminData = null;
+              if (!vendedor) {
+                try {
+                  const { getCurrentUser } = await import('../api/auth');
+                  adminData = await getCurrentUser();
+                } catch (e) {
+                  console.warn('No se pudo cargar datos del admin');
+                }
+              }
+              exportContratoPrestamoFormatoPDF({ prestamo, cliente, vendedor, adminData, lugar: '', fecha: new Date() });
+            }}
           >
             Contrato (formato)
           </button>
