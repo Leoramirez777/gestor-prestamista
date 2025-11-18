@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from app.database.database import get_db
 from app.models.models import Empleado, PagoCobrador, PrestamoVendedor
-from app.schemas.schemas import Empleado as EmpleadoSchema, EmpleadoCreate, PagoCobrador as PagoCobradorSchema, PrestamoVendedor as PrestamoVendedorSchema
+from app.schemas.schemas import Empleado as EmpleadoSchema, EmpleadoCreate, EmpleadoUpdate, PagoCobrador as PagoCobradorSchema, PrestamoVendedor as PrestamoVendedorSchema
 
 router = APIRouter(prefix="/api/empleados", tags=["Empleados"])
 
@@ -31,6 +31,18 @@ def crear_empleado(empleado: EmpleadoCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+@router.put("/{empleado_id}", response_model=EmpleadoSchema)
+def actualizar_empleado(empleado_id: int, datos: EmpleadoUpdate, db: Session = Depends(get_db)):
+    emp = db.query(Empleado).filter(Empleado.id == empleado_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    cambios = datos.model_dump(exclude_unset=True)
+    for k, v in cambios.items():
+        setattr(emp, k, v)
+    db.commit()
+    db.refresh(emp)
+    return emp
 
 
 @router.get("/{empleado_id}/comisiones", response_model=List[PagoCobradorSchema])

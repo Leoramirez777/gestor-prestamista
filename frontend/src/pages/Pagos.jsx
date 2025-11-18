@@ -4,6 +4,7 @@ import { fetchPagos, createPago, previewPagoCobrador } from '../api/pagos';
 import { fetchPrestamos } from '../api/prestamos';
 import { fetchClientes } from '../api/clientes';
 import { fetchEmpleados } from '../api/empleados';
+import { exportPagoPDF, exportReciboPagoFormatoPDF } from '../utils/pdfExport';
 import '../styles/Pagos.css';
 
 export default function Pagos() {
@@ -403,6 +404,8 @@ export default function Pagos() {
                 </thead>
                 <tbody>
                   {pagosOrdenados.map((pago) => {
+                    const prestamo = prestamos.find(p => p.id === pago.prestamo_id);
+                    const cliente = prestamo ? clientes.find(c => c.id === prestamo.cliente_id) : null;
                     const prestamoInfo = getPrestamoInfo(pago.prestamo_id);
                     return (
                       <tr key={pago.id}>
@@ -433,15 +436,40 @@ export default function Pagos() {
                           </span>
                         </td>
                         <td>
-                          <button 
-                            className="btn btn-outline-primary btn-sm"
-                            title="Ver detalles"
-                            onClick={() => {
-                              console.log('Ver detalles de pago:', pago.id);
-                            }}
-                          >
-                            👁️
-                          </button>
+                          <div className="btn-group">
+                            <button
+                              className="btn btn-sm btn-outline-primary"
+                              title="Recibo detallado"
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(`/api/pagos/${pago.id}/cobrador`);
+                                  const cobrador = res.ok ? await res.json() : null;
+                                  await exportPagoPDF({ pago, cliente, prestamo, cobrador });
+                                } catch (e) {
+                                  console.error('Error exportando PDF del pago', e);
+                                  alert('No se pudo generar el PDF del pago');
+                                }
+                              }}
+                            >
+                              PDF
+                            </button>
+                            <button
+                              className="btn btn-sm btn-outline-success"
+                              title="Recibo clásico (formato)"
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch(`/api/pagos/${pago.id}/cobrador`);
+                                  const cobrador = res.ok ? await res.json() : null;
+                                  await exportReciboPagoFormatoPDF({ pago, cliente, prestamo, cobrador, metodo: pago.metodo_pago || 'efectivo' });
+                                } catch (e) {
+                                  console.error('Error exportando Recibo formato', e);
+                                  alert('No se pudo generar el Recibo en PDF');
+                                }
+                              }}
+                            >
+                              Recibo
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

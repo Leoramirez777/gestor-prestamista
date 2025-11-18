@@ -1,0 +1,9 @@
+.ajustes-perfil-card { border:1px solid #dee2e6; border-radius:6px; overflow:hidden; }
+.ajustes-perfil-header { background:#6c757d; color:#fff; padding:1rem 1.25rem; display:flex; justify-content:space-between; align-items:center; }
+.ajustes-perfil-body { background:#f8f9fa; padding:1.25rem; }
+.ajustes-avatar { width:60px; height:60px; border-radius:50%; background:#adb5bd; display:flex; align-items:center; justify-content:center; font-weight:600; font-size:1.25rem; color:#343a40; }
+.ajustes-field-label { font-size:.75rem; text-transform:uppercase; letter-spacing:.5px; color:#6c757d; margin-bottom:.15rem; }
+.ajustes-field-value { font-weight:600; color:#343a40; }
+.ajustes-edit-btn { border:none; background:#fff; color:#343a40; font-weight:600; padding:.4rem .9rem; border-radius:4px; box-shadow:0 0 0 1px #fff; }
+.ajustes-edit-btn:hover { background:#5a6268; color:#fff; }
+.ajustes-divider { height:1px; background:#dee2e6; margin:1rem 0; }

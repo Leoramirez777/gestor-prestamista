@@ -10,6 +10,10 @@ class Usuario(Base):
     username = Column(String(50), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
     nombre_completo = Column(String(100), nullable=False)
+    dni = Column(String(20))
+    telefono = Column(String(20))
+    direccion = Column(String(200))
+    email = Column(String(100))
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

@@ -32,11 +32,19 @@ class UserCreate(BaseModel):
     username: str
     password: str
     nombre_completo: str
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    direccion: Optional[str] = None
+    email: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int
     username: str
     nombre_completo: str
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    direccion: Optional[str] = None
+    email: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -66,7 +74,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
+        username = payload.get("sub")  # type: ignore
         if username is None:
             raise credentials_exception
         token_data = TokenData(username=username)
@@ -91,7 +99,11 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     new_user = Usuario(
         username=user.username,
         hashed_password=hashed_password,
-        nombre_completo=user.nombre_completo
+        nombre_completo=user.nombre_completo,
+        dni=user.dni,
+        telefono=user.telefono,
+        direccion=user.direccion,
+        email=user.email
     )
     db.add(new_user)
     db.commit()
@@ -120,6 +132,26 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @router.get("/me", response_model=UserResponse)
 def read_users_me(current_user: Usuario = Depends(get_current_user)):
+    return current_user
+
+class UserUpdate(BaseModel):
+    nombre_completo: Optional[str] = None
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    direccion: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None  # permitir cambio de contraseña
+
+@router.put("/me", response_model=UserResponse)
+def update_me(datos: UserUpdate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    cambios = datos.model_dump(exclude_unset=True)
+    if 'password' in cambios:
+        hashed = get_password_hash(cambios.pop('password'))
+        setattr(current_user, 'hashed_password', hashed)
+    for k, v in cambios.items():
+        setattr(current_user, k, v)
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 @router.post("/logout")

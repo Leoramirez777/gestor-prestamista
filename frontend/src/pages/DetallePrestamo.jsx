@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { fetchPrestamos, refinanciarPrestamo, fetchAmortizacion, fetchPrestamoVendedor } from '../api/prestamos';
 import { fetchCliente } from '../api/clientes';
 import { fetchPagosByPrestamo } from '../api/pagos';
+import { exportPrestamoPDF, exportContratoPrestamoFormatoPDF } from '../utils/pdfExport';
 import '../styles/DetallePrestamo.css';
 
 export default function DetallePrestamo() {
@@ -197,9 +198,23 @@ export default function DetallePrestamo() {
       {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h1 className="fw-bold text-dark">Detalle del Préstamo</h1>
-        <button className="btn btn-outline-secondary" onClick={() => navigate('/prestamos')}>
-          ← Volver a Préstamos
-        </button>
+        <div className="d-flex gap-2">
+          <button 
+            className="btn btn-success" 
+            onClick={() => exportPrestamoPDF(prestamo, cliente, pagos, amortizacion, vendedor)}
+          >
+            <i className="fas fa-file-pdf me-2"></i>Exportar PDF
+          </button>
+          <button 
+            className="btn btn-outline-primary" 
+            onClick={() => exportContratoPrestamoFormatoPDF({ prestamo, cliente, lugar: '', fecha: new Date() })}
+          >
+            Contrato (formato)
+          </button>
+          <button className="btn btn-outline-secondary" onClick={() => navigate('/prestamos')}>
+            ← Volver a Préstamos
+          </button>
+        </div>
       </div>
 
       {/* Card principal con información del cliente */}

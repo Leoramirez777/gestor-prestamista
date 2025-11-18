@@ -27,6 +27,15 @@ export async function createEmpleado(payload) {
   }
 }
 
+export async function updateEmpleado(id, payload) {
+  try {
+    const { data } = await api.put(`/api/empleados/${id}`, payload);
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
 export async function fetchComisionesEmpleado(empleadoId) {
   try {
     const { data } = await api.get(`/api/empleados/${empleadoId}/comisiones`);

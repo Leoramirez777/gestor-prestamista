@@ -34,18 +34,24 @@ export const logout = () => {
 export const getCurrentUser = async () => {
   const token = localStorage.getItem('token');
   if (!token) return null;
-  
   try {
     const response = await axios.get(`${API_URL}/me`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data;
+    return response.data; // incluye dni, telefono, direccion, email
   } catch (error) {
     logout();
     return null;
   }
+};
+
+export const updateCurrentUser = async (data) => {
+  const token = localStorage.getItem('token');
+  if (!token) throw new Error('No autenticado');
+  const response = await axios.put(`${API_URL}/me`, data, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return response.data;
 };
 
 export const getToken = () => {

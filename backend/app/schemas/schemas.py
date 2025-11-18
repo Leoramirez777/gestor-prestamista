@@ -125,6 +125,15 @@ class EmpleadoBase(BaseModel):
 class EmpleadoCreate(EmpleadoBase):
     pass
 
+class EmpleadoUpdate(BaseModel):
+    nombre: Optional[str] = None
+    puesto: Optional[str] = None
+    telefono: Optional[str] = None
+    dni: Optional[str] = None
+    email: Optional[str] = None
+    direccion: Optional[str] = None
+    fecha_nacimiento: Optional[date] = None
+
 class Empleado(EmpleadoBase):
     id: int
     created_at: datetime
