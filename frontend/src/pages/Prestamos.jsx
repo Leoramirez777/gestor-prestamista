@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchPrestamos } from '../api/prestamos';
 import { fetchClientes } from '../api/clientes';
+import { fetchEmpleados } from '../api/empleados';
 import '../styles/Prestamos.css';
 
 export default function Prestamos() {
@@ -19,6 +20,21 @@ export default function Prestamos() {
   const [filtroTasaMin, setFiltroTasaMin] = useState("");
   const [filtroTasaMax, setFiltroTasaMax] = useState("");
   const [filtroFechaCreacion, setFiltroFechaCreacion] = useState("");
+  // Nuevos filtros
+  const [filtroVendedor, setFiltroVendedor] = useState(""); // "" | "con" | "sin" | empleadoId
+  const [filtroFrecuencia, setFiltroFrecuencia] = useState(""); // "" | "semanal" | "mensual"
+  const [filtroInicioDesde, setFiltroInicioDesde] = useState("");
+  const [filtroInicioHasta, setFiltroInicioHasta] = useState("");
+  const [filtroVencDesde, setFiltroVencDesde] = useState("");
+  const [filtroVencHasta, setFiltroVencHasta] = useState("");
+  const [filtroProximos, setFiltroProximos] = useState(""); // "" | "7" | "15" | "30"
+  const [filtroSaldoPendMin, setFiltroSaldoPendMin] = useState("");
+  const [filtroSaldoPendMax, setFiltroSaldoPendMax] = useState("");
+  const [filtroSaldoCuotaMin, setFiltroSaldoCuotaMin] = useState("");
+  const [filtroSaldoCuotaMax, setFiltroSaldoCuotaMax] = useState("");
+  // Mapa de vendedores por préstamo
+  const [vendedoresMap, setVendedoresMap] = useState({});
+  const [empleados, setEmpleados] = useState([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -26,13 +42,16 @@ export default function Prestamos() {
         setLoading(true);
         
         // Cargar préstamos y clientes en paralelo
-        const [prestamosData, clientesData] = await Promise.all([
+        const [prestamosData, clientesData, empleadosData] = await Promise.all([
           fetchPrestamos(),
-          fetchClientes()
+          fetchClientes(),
+          fetchEmpleados()
         ]);
         
         setPrestamos(prestamosData || []);
         setClientes(clientesData || []);
+        setEmpleados(empleadosData || []);
+        await loadVendedoresInfo(prestamosData || []);
         setError(null);
       } catch (err) {
         console.error('Error al cargar datos:', err);
@@ -74,6 +93,23 @@ export default function Prestamos() {
     return date.toLocaleDateString('es-ES');
   };
 
+  // Cargar información de vendedor para cada préstamo (si existe)
+  const loadVendedoresInfo = async (lista) => {
+    const map = {};
+    for (const pr of lista) {
+      try {
+        const res = await fetch(`/api/prestamos/${pr.id}/vendedor`);
+        if (res.ok) {
+          const reg = await res.json();
+          map[pr.id] = { id: reg.empleado_id || null, nombre: reg.empleado_nombre || 'Vendedor' };
+        }
+      } catch (e) {
+        // sin vendedor
+      }
+    }
+    setVendedoresMap(map);
+  };
+
   // Orden descendente por ID (más recientes primero)
   const prestamosOrdenados = [...prestamos].sort((a,b) => b.id - a.id);
   const ultimoIdPrestamo = prestamosOrdenados.length ? prestamosOrdenados[0].id : null;
@@ -96,6 +132,50 @@ export default function Prestamos() {
     if (filtroFechaCreacion) {
       const fechaPrestamo = new Date(prestamo.fecha_inicio.split('T')[0]).toISOString().split('T')[0];
       if (fechaPrestamo !== filtroFechaCreacion) return false;
+    }
+    // Frecuencia
+    if (filtroFrecuencia && (prestamo.frecuencia_pago || '').toLowerCase() !== filtroFrecuencia) return false;
+    // Rango de fecha inicio
+    if (filtroInicioDesde) {
+      const f = prestamo.fecha_inicio.split('T')[0];
+      if (f < filtroInicioDesde) return false;
+    }
+    if (filtroInicioHasta) {
+      const f = prestamo.fecha_inicio.split('T')[0];
+      if (f > filtroInicioHasta) return false;
+    }
+    // Rango de fecha vencimiento
+    if (filtroVencDesde) {
+      const f = prestamo.fecha_vencimiento.split('T')[0];
+      if (f < filtroVencDesde) return false;
+    }
+    if (filtroVencHasta) {
+      const f = prestamo.fecha_vencimiento.split('T')[0];
+      if (f > filtroVencHasta) return false;
+    }
+    // Próximos a vencer en X días
+    if (filtroProximos) {
+      const hoy = new Date();
+      const [y, m, d] = prestamo.fecha_vencimiento.split('T')[0].split('-');
+      const fv = new Date(Number(y), Number(m) - 1, Number(d));
+      const diff = Math.ceil((fv - new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate())) / (1000*60*60*24));
+      if (diff < 0 || diff > parseInt(filtroProximos)) return false;
+    }
+    // Saldo pendiente rango
+    if (filtroSaldoPendMin && prestamo.saldo_pendiente < parseFloat(filtroSaldoPendMin)) return false;
+    if (filtroSaldoPendMax && prestamo.saldo_pendiente > parseFloat(filtroSaldoPendMax)) return false;
+    // Saldo de cuota rango
+    if (filtroSaldoCuotaMin && prestamo.saldo_cuota < parseFloat(filtroSaldoCuotaMin)) return false;
+    if (filtroSaldoCuotaMax && prestamo.saldo_cuota > parseFloat(filtroSaldoCuotaMax)) return false;
+    // Vendedor
+    if (filtroVendedor) {
+      const info = vendedoresMap[prestamo.id];
+      if (filtroVendedor === 'con' && !info) return false;
+      if (filtroVendedor === 'sin' && info) return false;
+      if (filtroVendedor !== 'con' && filtroVendedor !== 'sin') {
+        const idSel = parseInt(filtroVendedor);
+        if (!info || (info.id || 0) !== idSel) return false;
+      }
     }
     return true;
   });
@@ -127,15 +207,15 @@ export default function Prestamos() {
         </div>
       </div>
 
-      <div className="card mb-4 shadow-sm border-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '16px' }}>
+      <div className="card mb-4 shadow-sm border-0" style={{ borderLeft: '4px solid #198754' }}>
         <div className="card-body p-4">
           <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5 className="text-white fw-bold mb-0">
+            <h5 className="fw-bold mb-0" style={{ color: '#000' }}>
               <i className="fas fa-filter me-2"></i>Filtros de Búsqueda
             </h5>
             <button 
               type="button" 
-              className="btn btn-sm btn-light"
+              className="btn btn-sm btn-outline-secondary"
               onClick={() => {
                 setFiltroNombre("");
                 setFiltroEstado("");
@@ -144,6 +224,17 @@ export default function Prestamos() {
                 setFiltroTasaMin("");
                 setFiltroTasaMax("");
                 setFiltroFechaCreacion("");
+                setFiltroVendedor("");
+                setFiltroFrecuencia("");
+                setFiltroInicioDesde("");
+                setFiltroInicioHasta("");
+                setFiltroVencDesde("");
+                setFiltroVencHasta("");
+                setFiltroProximos("");
+                setFiltroSaldoPendMin("");
+                setFiltroSaldoPendMax("");
+                setFiltroSaldoCuotaMin("");
+                setFiltroSaldoCuotaMax("");
               }}
             >
               <i className="fas fa-times me-1"></i>Limpiar
@@ -153,7 +244,7 @@ export default function Prestamos() {
           {/* Primera fila de filtros */}
           <div className="row g-3 mb-3">
             <div className="col-md-3">
-              <label className="form-label text-white mb-1 small">Nombre del Cliente</label>
+              <label className="form-label small fw-bold">Nombre del Cliente</label>
               <input 
                 type="text" 
                 className="form-control" 
@@ -164,7 +255,7 @@ export default function Prestamos() {
               />
             </div>
             <div className="col-md-2">
-              <label className="form-label text-white mb-1 small">Estado del Préstamo</label>
+              <label className="form-label small fw-bold">Estado del Préstamo</label>
               <select 
                 className="form-select" 
                 value={filtroEstado} 
@@ -175,10 +266,11 @@ export default function Prestamos() {
                 <option value="activo">Activo</option>
                 <option value="pagado">Pagado</option>
                 <option value="vencido">Vencido</option>
+                <option value="refinanciado">Refinanciado</option>
               </select>
             </div>
             <div className="col-md-2">
-              <label className="form-label text-white mb-1 small">Monto Mínimo</label>
+              <label className="form-label small fw-bold">Monto Mínimo</label>
               <input 
                 type="number" 
                 className="form-control" 
@@ -190,7 +282,7 @@ export default function Prestamos() {
               />
             </div>
             <div className="col-md-2">
-              <label className="form-label text-white mb-1 small">Monto Máximo</label>
+              <label className="form-label small fw-bold">Monto Máximo</label>
               <input 
                 type="number" 
                 className="form-control" 
@@ -202,7 +294,7 @@ export default function Prestamos() {
               />
             </div>
             <div className="col-md-3">
-              <label className="form-label text-white mb-1 small">Fecha de Creación</label>
+              <label className="form-label small fw-bold">Fecha de Creación</label>
               <input 
                 type="date" 
                 className="form-control" 
@@ -214,9 +306,9 @@ export default function Prestamos() {
           </div>
           
           {/* Segunda fila de filtros */}
-          <div className="row g-3">
+          <div className="row g-3 mb-3">
             <div className="col-md-2">
-              <label className="form-label text-white mb-1 small">Tasa Mínima (%)</label>
+              <label className="form-label small fw-bold">Tasa Mínima (%)</label>
               <input 
                 type="number" 
                 className="form-control" 
@@ -229,7 +321,7 @@ export default function Prestamos() {
               />
             </div>
             <div className="col-md-2">
-              <label className="form-label text-white mb-1 small">Tasa Máxima (%)</label>
+              <label className="form-label small fw-bold">Tasa Máxima (%)</label>
               <input 
                 type="number" 
                 className="form-control" 
@@ -241,7 +333,119 @@ export default function Prestamos() {
                 style={{ borderRadius: '8px' }}
               />
             </div>
-            <div className="col-md-8 d-flex align-items-end">
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Vendedor</label>
+              <select
+                className="form-select"
+                value={filtroVendedor}
+                onChange={(e) => setFiltroVendedor(e.target.value)}
+                style={{ borderRadius: '8px' }}
+              >
+                <option value="">Todos</option>
+                <option value="con">Con vendedor</option>
+                <option value="sin">Sin vendedor</option>
+                {empleados
+                  .filter(emp => (emp.puesto || '').toLowerCase() === 'vendedor')
+                  .map(emp => (
+                    <option key={emp.id} value={String(emp.id)}>{emp.nombre}</option>
+                  ))}
+              </select>
+            </div>
+            <div className="col-md-2">
+              <label className="form-label small fw-bold">Frecuencia</label>
+              <select
+                className="form-select"
+                value={filtroFrecuencia}
+                onChange={(e) => setFiltroFrecuencia(e.target.value)}
+                style={{ borderRadius: '8px' }}
+              >
+                <option value="">Todas</option>
+                <option value="semanal">Semanal</option>
+                <option value="mensual">Mensual</option>
+              </select>
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Próximos a vencer</label>
+              <select
+                className="form-select"
+                value={filtroProximos}
+                onChange={(e) => setFiltroProximos(e.target.value)}
+                style={{ borderRadius: '8px' }}
+              >
+                <option value="">Todos</option>
+                <option value="7">≤ 7 días</option>
+                <option value="15">≤ 15 días</option>
+                <option value="30">≤ 30 días</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tercera fila: rangos de fechas */}
+          <div className="row g-3 mb-3">
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Inicio: Desde</label>
+              <input type="date" className="form-control" value={filtroInicioDesde} onChange={e=>setFiltroInicioDesde(e.target.value)} style={{ borderRadius: '8px' }} />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Inicio: Hasta</label>
+              <input type="date" className="form-control" value={filtroInicioHasta} onChange={e=>setFiltroInicioHasta(e.target.value)} style={{ borderRadius: '8px' }} />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Vencimiento: Desde</label>
+              <input type="date" className="form-control" value={filtroVencDesde} onChange={e=>setFiltroVencDesde(e.target.value)} style={{ borderRadius: '8px' }} />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Vencimiento: Hasta</label>
+              <input type="date" className="form-control" value={filtroVencHasta} onChange={e=>setFiltroVencHasta(e.target.value)} style={{ borderRadius: '8px' }} />
+            </div>
+          </div>
+
+          {/* Atajos de tiempo para inicio */}
+          <div className="mb-3">
+            <div className="btn-group btn-group-sm" role="group" aria-label="Atajos de tiempo">
+              <button type="button" className="btn btn-outline-secondary time-shortcut-btn" onClick={() => {
+                const hoy = new Date();
+                const iso = hoy.toISOString().split('T')[0];
+                setFiltroInicioDesde(iso);
+                setFiltroInicioHasta(iso);
+              }}>Hoy</button>
+              <button type="button" className="btn btn-outline-secondary time-shortcut-btn" onClick={() => {
+                const hoy = new Date();
+                const past = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 7);
+                setFiltroInicioDesde(past.toISOString().split('T')[0]);
+                setFiltroInicioHasta(hoy.toISOString().split('T')[0]);
+              }}>Últimos 7 días</button>
+              <button type="button" className="btn btn-outline-secondary time-shortcut-btn" onClick={() => {
+                const hoy = new Date();
+                const start = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+                const end = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+                setFiltroInicioDesde(start.toISOString().split('T')[0]);
+                setFiltroInicioHasta(end.toISOString().split('T')[0]);
+              }}>Este mes</button>
+            </div>
+          </div>
+
+          {/* Cuarta fila: saldos */}
+          <div className="row g-3">
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Saldo pendiente mín</label>
+              <input type="number" className="form-control" value={filtroSaldoPendMin} onChange={e=>setFiltroSaldoPendMin(e.target.value)} min="0" style={{ borderRadius: '8px' }} />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Saldo pendiente máx</label>
+              <input type="number" className="form-control" value={filtroSaldoPendMax} onChange={e=>setFiltroSaldoPendMax(e.target.value)} min="0" style={{ borderRadius: '8px' }} />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Saldo de cuota mín</label>
+              <input type="number" className="form-control" value={filtroSaldoCuotaMin} onChange={e=>setFiltroSaldoCuotaMin(e.target.value)} style={{ borderRadius: '8px' }} />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Saldo de cuota máx</label>
+              <input type="number" className="form-control" value={filtroSaldoCuotaMax} onChange={e=>setFiltroSaldoCuotaMax(e.target.value)} style={{ borderRadius: '8px' }} />
+            </div>
+          </div>
+          <div className="row g-3 mt-3">
+            <div className="col-12">
               <div className="alert alert-light mb-0 py-2 w-100" style={{ borderRadius: '8px' }}>
                 <small className="text-muted">
                   <i className="fas fa-info-circle me-1"></i>
@@ -250,50 +454,9 @@ export default function Prestamos() {
               </div>
             </div>
           </div>
-        </div>
-      </div>
-      <div className="row mb-4">
-        <div className="col-md-2">
-          <div className="card text-center border-0 bg-light">
-            <div className="card-body">
-              <h5 className="card-title text-primary">{prestamos.length}</h5>
-              <p className="card-text small">Total Préstamos</p>
-            </div>
           </div>
         </div>
-        <div className="col-md-2">
-          <div className="card text-center border-0 bg-light">
-            <div className="card-body">
-              <h5 className="card-title text-success">{prestamos.filter(p => p.estado === 'activo').length}</h5>
-              <p className="card-text small">Activos</p>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-2">
-          <div className="card text-center border-0 bg-light">
-            <div className="card-body">
-              <h5 className="card-title text-primary">{formatCurrency(prestamos.reduce((sum, p) => sum + (p.monto || 0), 0))}</h5>
-              <p className="card-text small">Total Prestado</p>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-2">
-          <div className="card text-center border-0 bg-light">
-            <div className="card-body">
-              <h5 className="card-title text-dark">{formatCurrency(prestamos.reduce((sum, p) => sum + (p.saldo_pendiente || 0), 0))}</h5>
-              <p className="card-text small">Saldo Pendiente</p>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-2">
-          <div className="card text-center border-0 bg-light">
-            <div className="card-body">
-              <h5 className="card-title text-dark">{ultimoIdPrestamo ? `#${ultimoIdPrestamo}` : '-'}</h5>
-              <p className="card-text small">ID más reciente</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      
 
       {prestamosFiltrados.length === 0 ? (
         <div className="text-center py-5">
@@ -327,6 +490,7 @@ export default function Prestamos() {
                     <th>Vencimiento</th>
                     <th>Saldo Pendiente</th>
                     <th>Estado</th>
+                    <th>Vendedor</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -355,7 +519,7 @@ export default function Prestamos() {
                       <td>{formatDate(prestamo.fecha_inicio)}</td>
                       <td>{formatDate(prestamo.fecha_vencimiento)}</td>
                       <td>
-                        <span className={`fw-bold ${prestamo.saldo_pendiente > 0 ? 'text-danger' : 'text-success'}`}>
+                        <span className={`fw-bold ${prestamo.saldo_pendiente > 0 ? 'text-danger' : 'text-dark'}`}>
                           {formatCurrency(prestamo.saldo_pendiente)}
                         </span>
                       </td>
@@ -363,6 +527,15 @@ export default function Prestamos() {
                         <span className={getEstadoClass(prestamo.estado)}>
                           {prestamo.estado || 'Sin estado'}
                         </span>
+                      </td>
+                      <td>
+                        {vendedoresMap[prestamo.id] ? (
+                          <span className="badge bg-light text-dark border" title="Vendedor">
+                            {vendedoresMap[prestamo.id].nombre}
+                          </span>
+                        ) : (
+                          <span className="text-muted">No</span>
+                        )}
                       </td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <button 

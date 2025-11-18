@@ -230,32 +230,32 @@
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
 
-.btn-primary {
+.resumen-container .btn-primary {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.btn-success {
+.resumen-container .btn-success {
   background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
 }
 
-.btn-outline-primary {
+.resumen-container .btn-outline-primary {
   border: 2px solid #667eea;
   color: #667eea;
   background: transparent;
 }
 
-.btn-outline-primary:hover {
+.resumen-container .btn-outline-primary:hover {
   background: #667eea;
   color: white;
 }
 
-.btn-outline-secondary {
+.resumen-container .btn-outline-secondary {
   border: 2px solid #6c757d;
   color: #6c757d;
   background: transparent;
 }
 
-.btn-outline-secondary:hover {
+.resumen-container .btn-outline-secondary:hover {
   background: #6c757d;
   color: white;
 }

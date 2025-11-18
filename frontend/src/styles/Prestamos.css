@@ -1,3 +1,9 @@
+/* Hover verde para atajos de tiempo en Prestamos */
+.time-shortcut-btn:hover {
+  background-color: #198754 !important; /* Bootstrap success */
+  border-color: #198754 !important;
+  color: #fff !important;
+}
 /* Prestamos.css */
 
 .prestamos-container {
