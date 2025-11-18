@@ -164,6 +164,7 @@ class SummaryMetrics(BaseModel):
     total_pagos: int
     monto_total_prestado: float
     monto_total_recaudado: float
+    monto_total_esperado: float
     saldo_pendiente_total: float
     prestamos_activos: int
     prestamos_vencidos: int
@@ -172,6 +173,34 @@ class SummaryMetrics(BaseModel):
     average_loan_size: float
     ticket_promedio_pago: float
     clientes_activos: int
+    activation_rate: float
+
+class KPIMetrics(BaseModel):
+    timestamp: str
+    total_clientes: int
+    total_prestamos: int
+    monto_total_prestado: float
+    monto_total_recaudado: float
+    monto_total_esperado: float
+    saldo_pendiente_total: float
+    prestamos_activos: int
+    prestamos_vencidos: int
+    pagos_hoy: int
+    monto_esperado_hoy: float
+    recaudado_hoy_monto: float
+    cumplimiento_hoy_pct: float
+    tasa_recaudo: float
+    average_loan_size: float
+    ticket_promedio_pago: float
+    clientes_activos: int
+    activation_rate: float
+
+class DailySimpleMetrics(BaseModel):
+    fecha: str
+    prestado_hoy: float
+    prestado_con_intereses_hoy: float
+    por_cobrar_hoy: float
+    cobrado_hoy: float
 
 
 # ===== AMORTIZACIÓN =====

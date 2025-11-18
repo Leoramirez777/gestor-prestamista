@@ -4,75 +4,142 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import "../styles/Resumen.css";
 
 // Importar APIs
-import { fetchMetricsSummary, fetchDueToday, fetchDueNext } from '../api/metrics';
+import { fetchMetricsSummary, fetchPeriodMetrics, fetchExpectativas } from '../api/metrics';
+
+// Helper para obtener rango de semana
+function getWeekRange(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Lunes como inicio
+  const monday = new Date(d.setDate(diff));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return {
+    start: monday.toISOString().split('T')[0],
+    end: sunday.toISOString().split('T')[0]
+  };
+}
 
 function Resumen() {
   const navigate = useNavigate();
+  // Estados para pestañas y filtros
+  const [resumenTab, setResumenTab] = useState('diario'); // diario, semanal, mensual
+  const [expectativasTab, setExpectativasTab] = useState('fecha'); // fecha, semana, mes
+  
+  // Fechas seleccionadas
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [viewMode, setViewMode] = useState('today'); // 'today', 'custom'
-  const [stats, setStats] = useState({
-    totalClientes: 0,
-    totalPrestamos: 0,
-    totalPagos: 0,
-    montoTotalPrestado: 0,
-    montoTotalRecaudado: 0,
-    saldoPendiente: 0,
-    prestamosActivos: 0,
-    prestamosVencidos: 0,
-    pagosHoy: 0,
-    clientesActivos: 0,
-    tasaRecaudo: 0,
-    averageLoanSize: 0
+  const [selectedWeek, setSelectedWeek] = useState(getWeekRange(new Date()));
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  
+  // General summary stats (independientes del rango diario)
+  const [summary, setSummary] = useState({
+    total_prestamos: 0,
+    monto_total_prestado: 0,
+    monto_total_recaudado: 0,
+    monto_total_esperado: 0,
+    saldo_pendiente_total: 0,
+    prestamos_activos: 0,
+    prestamos_vencidos: 0,
+    average_loan_size: 0,
+    activation_rate: 0
   });
-  const [dueToday, setDueToday] = useState({ monto_esperado_hoy: 0, cuotas_hoy: 0 });
-  const [dueNext, setDueNext] = useState({ monto_proximos: 0, cuotas_proximas: 0, por_dia: [] });
+
+  // Resumen del período actual
+  const [periodData, setPeriodData] = useState({
+    prestado: 0,
+    prestado_con_intereses: 0,
+    por_cobrar: 0,
+    cobrado: 0
+  });
+
+  // Expectativas (lo que se espera cobrar)
+  const [expectativas, setExpectativas] = useState({
+    monto_esperado: 0,
+    cantidad_cuotas: 0
+  });
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [resumenTab, selectedDate, selectedWeek, selectedMonth, expectativasTab]);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [summary, due, next7] = await Promise.all([
-        fetchMetricsSummary(),
-        fetchDueToday(),
-        fetchDueNext(7)
-      ]);
-      if (summary) {
-        setStats({
-          totalClientes: summary.total_clientes,
-          totalPrestamos: summary.total_prestamos,
-          totalPagos: summary.total_pagos,
-          montoTotalPrestado: summary.monto_total_prestado,
-            montoTotalRecaudado: summary.monto_total_recaudado,
-          saldoPendiente: summary.saldo_pendiente_total,
-          prestamosActivos: summary.prestamos_activos,
-          prestamosVencidos: summary.prestamos_vencidos,
-          pagosHoy: summary.pagos_hoy,
-          clientesActivos: summary.clientes_activos,
-          tasaRecaudo: summary.tasa_recaudo,
-          averageLoanSize: summary.average_loan_size
+      
+      // Siempre cargar totales generales
+      const summaryData = await fetchMetricsSummary();
+      if (summaryData) {
+        setSummary({
+          total_prestamos: summaryData.total_prestamos || 0,
+          monto_total_prestado: summaryData.monto_total_prestado || 0,
+          monto_total_recaudado: summaryData.monto_total_recaudado || 0,
+          monto_total_esperado: summaryData.monto_total_esperado || 0,
+          saldo_pendiente_total: summaryData.saldo_pendiente_total || 0,
+          prestamos_activos: summaryData.prestamos_activos || 0,
+          prestamos_vencidos: summaryData.prestamos_vencidos || 0,
+          average_loan_size: summaryData.average_loan_size || 0,
+          activation_rate: summaryData.activation_rate || 0
         });
       }
-      if (due) {
-        setDueToday({
-          monto_esperado_hoy: due.monto_esperado_hoy || 0,
-          cuotas_hoy: due.cuotas_hoy || 0
-        });
-      }
-      if (next7) {
-        setDueNext({
-          monto_proximos: next7.monto_proximos || 0,
-          cuotas_proximas: next7.cuotas_proximas || 0,
-          por_dia: next7.por_dia || []
-        });
-      }
+
+      // Cargar datos del período según pestaña activa
+      await loadPeriodData();
+      
+      // Cargar expectativas según pestaña activa
+      await loadExpectativas();
+      
     } catch (error) {
       console.error('Error al cargar métricas del backend:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPeriodData = async () => {
+    try {
+      let data;
+      if (resumenTab === 'diario') {
+        data = await fetchPeriodMetrics('date', selectedDate);
+      } else if (resumenTab === 'semanal') {
+        data = await fetchPeriodMetrics('week', selectedWeek.start, selectedWeek.end);
+      } else if (resumenTab === 'mensual') {
+        data = await fetchPeriodMetrics('month', selectedMonth);
+      }
+      
+      if (data) {
+        setPeriodData({
+          prestado: data.prestado || 0,
+          prestado_con_intereses: data.prestado_con_intereses || 0,
+          por_cobrar: data.por_cobrar || 0,
+          cobrado: data.cobrado || 0
+        });
+      }
+    } catch (error) {
+      console.error('Error al cargar datos del período:', error);
+    }
+  };
+
+  const loadExpectativas = async () => {
+    try {
+      let data;
+      if (expectativasTab === 'fecha') {
+        data = await fetchExpectativas('date', selectedDate);
+      } else if (expectativasTab === 'semana') {
+        data = await fetchExpectativas('week', selectedWeek.start, selectedWeek.end);
+      } else if (expectativasTab === 'mes') {
+        data = await fetchExpectativas('month', selectedMonth);
+      }
+      
+      if (data) {
+        setExpectativas({
+          monto_esperado: data.monto_esperado || 0,
+          cantidad_cuotas: data.cantidad_cuotas || 0
+        });
+      }
+    } catch (error) {
+      console.error('Error al cargar expectativas:', error);
     }
   };
 
@@ -88,6 +155,8 @@ function Resumen() {
     return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
+  const percentDisplay = (val) => (val * 100).toFixed(1) + '%';
+
   return (
     <div className="resumen-container">
       <div className="container-fluid py-4">
@@ -102,35 +171,10 @@ function Resumen() {
                     Dashboard Financiero
                   </h1>
                   <p className="text-muted mb-0">
-                    {viewMode === 'today' ? 'Vista en tiempo real' : `Métricas del ${formatDate(selectedDate)}`}
+                    Vista completa del negocio
                   </p>
                 </div>
-                <div className="d-flex gap-2 flex-wrap">
-                  <div className="btn-group" role="group">
-                    <button 
-                      className={`btn ${viewMode === 'today' ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => { setViewMode('today'); setSelectedDate(new Date().toISOString().split('T')[0]); }}
-                    >
-                      <i className="fas fa-calendar-day me-2"></i>
-                      Hoy
-                    </button>
-                    <button 
-                      className={`btn ${viewMode === 'custom' ? 'btn-primary' : 'btn-outline-primary'}`}
-                      onClick={() => setViewMode('custom')}
-                    >
-                      <i className="fas fa-calendar-alt me-2"></i>
-                      Fecha específica
-                    </button>
-                  </div>
-                  {viewMode === 'custom' && (
-                    <input 
-                      type="date" 
-                      className="form-control" 
-                      style={{maxWidth: '180px'}}
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                    />
-                  )}
+                <div className="d-flex gap-2">
                   <button 
                     className="btn btn-success"
                     onClick={loadDashboardData}
@@ -152,209 +196,287 @@ function Resumen() {
           </div>
         </div>
 
-        {/* KPIs principales - Grid mejorado */}
-        <div className="row g-4 mb-4">
-          <div className="col-12 col-md-6 col-lg-3">
-            <div className="modern-card card-blue h-100">
-              <div className="card-body d-flex flex-column justify-content-between">
-                <div className="d-flex justify-content-between align-items-start mb-3">
-                  <div className="metric-icon-lg">
-                    <i className="fas fa-money-bill-wave"></i>
-                  </div>
-                  <span className="badge bg-light text-dark">Total</span>
-                </div>
-                <div>
-                  <h3 className="metric-title">Total Prestado</h3>
-                  <h2 className="metric-amount mb-1">{formatCurrency(stats.montoTotalPrestado)}</h2>
-                  <p className="metric-subtitle mb-0">
-                    <i className="fas fa-file-contract me-1"></i>
-                    {stats.totalPrestamos} préstamos
-                  </p>
-                </div>
+        {/* Totales Generales */}
+        <div className="section-header mb-3">
+          <h5 className="section-title mb-0">
+            <i className="fas fa-chart-bar me-2"></i>
+            Totales Generales
+          </h5>
+        </div>
+        <div className="metrics-grid mb-4">
+          <div className="metric-row">
+            <div className="metric-cell">
+              <div className="metric-icon-circle yellow">
+                <i className="fas fa-file-contract"></i>
+              </div>
+              <div className="metric-info">
+                <span className="metric-label">Prestado</span>
+                <span className="metric-value">{formatCurrency(summary.monto_total_prestado)}</span>
+              </div>
+            </div>
+            <div className="metric-cell">
+              <div className="metric-icon-circle green">
+                <i className="fas fa-check-circle"></i>
+              </div>
+              <div className="metric-info">
+                <span className="metric-label">Prestado Con Intereses</span>
+                <span className="metric-value">{formatCurrency(summary.monto_total_esperado)}</span>
+              </div>
+            </div>
+            <div className="metric-cell">
+              <div className="metric-icon-circle blue">
+                <i className="fas fa-hand-holding-usd"></i>
+              </div>
+              <div className="metric-info">
+                <span className="metric-label">Por Cobrar</span>
+                <span className="metric-value">{formatCurrency(summary.saldo_pendiente_total)}</span>
+              </div>
+            </div>
+            <div className="metric-cell">
+              <div className="metric-icon-circle purple">
+                <i className="fas fa-cash-register"></i>
+              </div>
+              <div className="metric-info">
+                <span className="metric-label">Cobrado</span>
+                <span className="metric-value">{formatCurrency(summary.monto_total_recaudado)}</span>
               </div>
             </div>
           </div>
-
-          <div className="col-12 col-md-6 col-lg-3">
-            <div className="modern-card card-green h-100">
-              <div className="card-body d-flex flex-column justify-content-between">
-                <div className="d-flex justify-content-between align-items-start mb-3">
-                  <div className="metric-icon-lg">
-                    <i className="fas fa-check-circle"></i>
-                  </div>
-                  <span className="badge bg-light text-dark">Recaudado</span>
-                </div>
-                <div>
-                  <h3 className="metric-title">Total Recaudado</h3>
-                  <h2 className="metric-amount mb-1">{formatCurrency(stats.montoTotalRecaudado)}</h2>
-                  <p className="metric-subtitle mb-0">
-                    <i className="fas fa-receipt me-1"></i>
-                    {stats.totalPagos} pagos registrados
-                  </p>
-                </div>
+          <div className="metric-row mt-3">
+            <div className="metric-cell">
+              <div className="metric-icon-circle red">
+                <i className="fas fa-users"></i>
+              </div>
+              <div className="metric-info">
+                <span className="metric-label">Clientes Activos</span>
+                <span className="metric-value">{summary.prestamos_activos}</span>
               </div>
             </div>
-          </div>
-
-          <div className="col-12 col-md-6 col-lg-3">
-            <div className="modern-card card-orange h-100">
-              <div className="card-body d-flex flex-column justify-content-between">
-                <div className="d-flex justify-content-between align-items-start mb-3">
-                  <div className="metric-icon-lg">
-                    <i className="fas fa-hourglass-half"></i>
-                  </div>
-                  <span className="badge bg-light text-dark">Pendiente</span>
-                </div>
-                <div>
-                  <h3 className="metric-title">Saldo Pendiente</h3>
-                  <h2 className="metric-amount mb-1">{formatCurrency(stats.saldoPendiente)}</h2>
-                  <p className="metric-subtitle mb-0">
-                    <i className="fas fa-exclamation-triangle me-1"></i>
-                    {stats.prestamosVencidos} vencidos
-                  </p>
-                </div>
+            <div className="metric-cell">
+              <div className="metric-icon-circle orange">
+                <i className="fas fa-percentage"></i>
+              </div>
+              <div className="metric-info">
+                <span className="metric-label">Tasa de Activación</span>
+                <span className="metric-value">{percentDisplay(summary.activation_rate)}</span>
               </div>
             </div>
-          </div>
-
-          <div className="col-12 col-md-6 col-lg-3">
-            <div className="modern-card card-purple h-100">
-              <div className="card-body d-flex flex-column justify-content-between">
-                <div className="d-flex justify-content-between align-items-start mb-3">
-                  <div className="metric-icon-lg">
-                    <i className="fas fa-chart-line"></i>
-                  </div>
-                  <span className="badge bg-light text-dark">Promedio</span>
-                </div>
-                <div>
-                  <h3 className="metric-title">Préstamo Promedio</h3>
-                  <h2 className="metric-amount mb-1">{formatCurrency(stats.averageLoanSize)}</h2>
-                  <p className="metric-subtitle mb-0">
-                    <i className="fas fa-users me-1"></i>
-                    {stats.clientesActivos} clientes activos
-                  </p>
-                </div>
+            <div className="metric-cell">
+              <div className="metric-icon-circle gray">
+                <i className="fas fa-exclamation-triangle"></i>
+              </div>
+              <div className="metric-info">
+                <span className="metric-label">Préstamos Vencidos</span>
+                <span className="metric-value">{summary.prestamos_vencidos}</span>
+              </div>
+            </div>
+            <div className="metric-cell">
+              <div className="metric-icon-circle blue">
+                <i className="fas fa-calculator"></i>
+              </div>
+              <div className="metric-info">
+                <span className="metric-label">Préstamo Promedio</span>
+                <span className="metric-value">{formatCurrency(summary.average_loan_size)}</span>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Sección: Actividad de Hoy */}
-        <div className="row mb-3">
-          <div className="col-12">
-            <h5 className="section-title">
-              <i className="fas fa-calendar-day me-2"></i>
-              Actividad de Hoy
+        {/* Resumen por Período */}
+        <div className="section-header mb-3">
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <h5 className="section-title mb-0">
+              <i className="fas fa-calendar-alt me-2"></i>
+              Resumen por Período
             </h5>
+            <div className="d-flex gap-2 align-items-center flex-wrap">
+              <div className="btn-group" role="group">
+                <button 
+                  className={`btn btn-sm ${resumenTab === 'diario' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => setResumenTab('diario')}
+                >
+                  <i className="fas fa-calendar-day me-1"></i>
+                  Diario
+                </button>
+                <button 
+                  className={`btn btn-sm ${resumenTab === 'semanal' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => setResumenTab('semanal')}
+                >
+                  <i className="fas fa-calendar-week me-1"></i>
+                  Semanal
+                </button>
+                <button 
+                  className={`btn btn-sm ${resumenTab === 'mensual' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => setResumenTab('mensual')}
+                >
+                  <i className="fas fa-calendar me-1"></i>
+                  Mensual
+                </button>
+              </div>
+              
+              {resumenTab === 'diario' && (
+                <input 
+                  type="date" 
+                  className="form-control form-control-sm" 
+                  style={{maxWidth: '160px'}}
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+              )}
+              
+              {resumenTab === 'semanal' && (
+                <input 
+                  type="week" 
+                  className="form-control form-control-sm" 
+                  style={{maxWidth: '160px'}}
+                  value={`${selectedWeek.start.slice(0,4)}-W${Math.ceil((new Date(selectedWeek.start) - new Date(selectedWeek.start.slice(0,4), 0, 1)) / 604800000)}`}
+                  onChange={(e) => {
+                    const [year, week] = e.target.value.split('-W');
+                    const firstDay = new Date(year, 0, 1 + (week - 1) * 7);
+                    setSelectedWeek(getWeekRange(firstDay));
+                  }}
+                />
+              )}
+              
+              {resumenTab === 'mensual' && (
+                <input 
+                  type="month" 
+                  className="form-control form-control-sm" 
+                  style={{maxWidth: '160px'}}
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                />
+              )}
+            </div>
           </div>
         </div>
-        <div className="row g-3 mb-4">
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="metric-card">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div className="metric-icon metric-icon-success">
-                  <i className="fas fa-bullseye"></i>
-                </div>
-                <span className="badge bg-success">Esperado</span>
+        <div className="metrics-grid mb-4">
+          <div className="metric-row">
+            <div className="metric-cell">
+              <div className="metric-icon-circle yellow">
+                <i className="fas fa-file-invoice-dollar"></i>
               </div>
-              <h4 className="metric-value">{formatCurrency(dueToday.monto_esperado_hoy)}</h4>
-              <p className="metric-label">Esperado Hoy</p>
+              <div className="metric-info">
+                <span className="metric-label">Prestado</span>
+                <span className="metric-value">{formatCurrency(periodData.prestado)}</span>
+              </div>
             </div>
-          </div>
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="metric-card">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div className="metric-icon metric-icon-info">
-                  <i className="fas fa-list-ol"></i>
-                </div>
-                <span className="badge bg-info">Cuotas</span>
+            <div className="metric-cell">
+              <div className="metric-icon-circle green">
+                <i className="fas fa-layer-group"></i>
               </div>
-              <h4 className="metric-value">{dueToday.cuotas_hoy}</h4>
-              <p className="metric-label">Cuotas Hoy</p>
+              <div className="metric-info">
+                <span className="metric-label">Prestado Con Intereses</span>
+                <span className="metric-value">{formatCurrency(periodData.prestado_con_intereses)}</span>
+              </div>
             </div>
-          </div>
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="metric-card">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div className="metric-icon metric-icon-success">
-                  <i className="fas fa-calendar-check"></i>
-                </div>
-                <span className="badge bg-success">Pagos</span>
+            <div className="metric-cell">
+              <div className="metric-icon-circle blue">
+                <i className="fas fa-hourglass-half"></i>
               </div>
-              <h4 className="metric-value">{stats.pagosHoy}</h4>
-              <p className="metric-label">Pagos Hoy</p>
+              <div className="metric-info">
+                <span className="metric-label">Por Cobrar</span>
+                <span className="metric-value">{formatCurrency(periodData.por_cobrar)}</span>
+              </div>
             </div>
-          </div>
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="metric-card">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div className="metric-icon metric-icon-primary">
-                  <i className="fas fa-play-circle"></i>
-                </div>
-                <span className="badge bg-primary">Activos</span>
+            <div className="metric-cell">
+              <div className="metric-icon-circle purple">
+                <i className="fas fa-cash-register"></i>
               </div>
-              <h4 className="metric-value">{stats.prestamosActivos}</h4>
-              <p className="metric-label">Préstamos Activos</p>
+              <div className="metric-info">
+                <span className="metric-label">Cobrado</span>
+                <span className="metric-value">{formatCurrency(periodData.cobrado)}</span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Sección: Próximos Vencimientos */}
-        <div className="row mb-3">
-          <div className="col-12">
-            <h5 className="section-title">
-              <i className="fas fa-clock me-2"></i>
-              Próximos 7 Días
+        {/* Expectativas (Lo que se espera cobrar) */}
+        <div className="section-header mb-3">
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <h5 className="section-title mb-0">
+              <i className="fas fa-bullseye me-2"></i>
+              Expectativas de Cobro
             </h5>
+            <div className="d-flex gap-2 align-items-center flex-wrap">
+              <div className="btn-group" role="group">
+                <button 
+                  className={`btn btn-sm ${expectativasTab === 'fecha' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => setExpectativasTab('fecha')}
+                >
+                  <i className="fas fa-calendar-day me-1"></i>
+                  Por Fecha
+                </button>
+                <button 
+                  className={`btn btn-sm ${expectativasTab === 'semana' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => setExpectativasTab('semana')}
+                >
+                  <i className="fas fa-calendar-week me-1"></i>
+                  Por Semana
+                </button>
+                <button 
+                  className={`btn btn-sm ${expectativasTab === 'mes' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => setExpectativasTab('mes')}
+                >
+                  <i className="fas fa-calendar me-1"></i>
+                  Por Mes
+                </button>
+              </div>
+              
+              {expectativasTab === 'fecha' && (
+                <input 
+                  type="date" 
+                  className="form-control form-control-sm" 
+                  style={{maxWidth: '160px'}}
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+              )}
+              
+              {expectativasTab === 'semana' && (
+                <input 
+                  type="week" 
+                  className="form-control form-control-sm" 
+                  style={{maxWidth: '160px'}}
+                  value={`${selectedWeek.start.slice(0,4)}-W${Math.ceil((new Date(selectedWeek.start) - new Date(selectedWeek.start.slice(0,4), 0, 1)) / 604800000)}`}
+                  onChange={(e) => {
+                    const [year, week] = e.target.value.split('-W');
+                    const firstDay = new Date(year, 0, 1 + (week - 1) * 7);
+                    setSelectedWeek(getWeekRange(firstDay));
+                  }}
+                />
+              )}
+              
+              {expectativasTab === 'mes' && (
+                <input 
+                  type="month" 
+                  className="form-control form-control-sm" 
+                  style={{maxWidth: '160px'}}
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                />
+              )}
+            </div>
           </div>
         </div>
-        <div className="row g-3 mb-4">
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="metric-card">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div className="metric-icon metric-icon-warning">
-                  <i className="fas fa-hourglass-half"></i>
-                </div>
-                <span className="badge bg-warning text-dark">7 días</span>
+        <div className="metrics-grid mb-4">
+          <div className="metric-row two-cols">
+            <div className="metric-cell">
+              <div className="metric-icon-circle orange">
+                <i className="fas fa-dollar-sign"></i>
               </div>
-              <h4 className="metric-value">{formatCurrency(dueNext.monto_proximos)}</h4>
-              <p className="metric-label">Vencen 7 días</p>
+              <div className="metric-info">
+                <span className="metric-label">Monto Esperado</span>
+                <span className="metric-value">{formatCurrency(expectativas.monto_esperado)}</span>
+              </div>
             </div>
-          </div>
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="metric-card">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div className="metric-icon metric-icon-secondary">
-                  <i className="fas fa-stream"></i>
-                </div>
-                <span className="badge bg-secondary">Cuotas</span>
+            <div className="metric-cell">
+              <div className="metric-icon-circle blue">
+                <i className="fas fa-list-ol"></i>
               </div>
-              <h4 className="metric-value">{dueNext.cuotas_proximas}</h4>
-              <p className="metric-label">Cuotas próximas</p>
-            </div>
-          </div>
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="metric-card">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div className="metric-icon metric-icon-danger">
-                  <i className="fas fa-exclamation-circle"></i>
-                </div>
-                <span className="badge bg-danger">Vencidos</span>
+              <div className="metric-info">
+                <span className="metric-label">Cantidad de Cuotas</span>
+                <span className="metric-value">{expectativas.cantidad_cuotas}</span>
               </div>
-              <h4 className="metric-value">{stats.prestamosVencidos}</h4>
-              <p className="metric-label">Préstamos Vencidos</p>
-            </div>
-          </div>
-          <div className="col-12 col-sm-6 col-lg-3">
-            <div className="metric-card">
-              <div className="d-flex justify-content-between align-items-center mb-3">
-                <div className="metric-icon metric-icon-info">
-                  <i className="fas fa-user-check"></i>
-                </div>
-                <span className="badge bg-info">Clientes</span>
-              </div>
-              <h4 className="metric-value">{stats.clientesActivos}</h4>
-              <p className="metric-label">Clientes Activos</p>
             </div>
           </div>
         </div>

@@ -26,3 +26,57 @@ export async function fetchDueNext(days = 7) {
     handleApiError(err);
   }
 }
+
+export async function fetchKPIs() {
+  try {
+    const { data } = await api.get('/api/metrics/kpis');
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function fetchDailySimple(days = 1) {
+  try {
+    const { data } = await api.get('/api/metrics/daily-simple', { params: { days } });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function fetchPeriodMetrics(type, startOrDate, end = null) {
+  try {
+    const params = {};
+    if (type === 'date') {
+      params.date = startOrDate;
+    } else if (type === 'week') {
+      params.start_date = startOrDate;
+      params.end_date = end;
+    } else if (type === 'month') {
+      params.month = startOrDate; // YYYY-MM
+    }
+    const { data } = await api.get(`/api/metrics/period/${type}`, { params });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function fetchExpectativas(type, startOrDate, end = null) {
+  try {
+    const params = {};
+    if (type === 'date') {
+      params.date = startOrDate;
+    } else if (type === 'week') {
+      params.start_date = startOrDate;
+      params.end_date = end;
+    } else if (type === 'month') {
+      params.month = startOrDate; // YYYY-MM
+    }
+    const { data } = await api.get(`/api/metrics/expectativas/${type}`, { params });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

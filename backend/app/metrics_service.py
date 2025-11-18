@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.models import Cliente, Prestamo, Pago
@@ -34,6 +34,9 @@ def get_summary_metrics(db: Session) -> dict:
     ticket_promedio_pago = (monto_total_recaudado / total_pagos) if total_pagos > 0 else 0.0
 
     clientes_activos = db.query(func.count(func.distinct(Prestamo.cliente_id))).filter(Prestamo.saldo_pendiente > 0).scalar() or 0
+    
+    # Calcular tasa de activación (clientes con préstamos activos / total clientes)
+    activation_rate = (clientes_activos / total_clientes) if total_clientes > 0 else 0.0
 
     return {
         'timestamp': today.isoformat(),
@@ -50,7 +53,8 @@ def get_summary_metrics(db: Session) -> dict:
         'tasa_recaudo': round(tasa_recaudo, 4),
         'average_loan_size': round(average_loan_size, 2),
         'ticket_promedio_pago': round(ticket_promedio_pago, 2),
-        'clientes_activos': clientes_activos
+        'clientes_activos': clientes_activos,
+        'activation_rate': round(activation_rate, 4)
     }
 
 
@@ -107,4 +111,163 @@ def get_due_next(db: Session, days: int = 7) -> dict:
         'monto_proximos': round(total_monto, 2),
         'cuotas_proximas': total_count,
         'por_dia': detalle
+    }
+
+
+def get_kpis(db: Session) -> dict:
+    """Combina resumen + esperado hoy + recaudado hoy y cálculos derivados."""
+    summary = get_summary_metrics(db)
+    due_today = get_due_today(db)
+    today = date.today()
+
+    recaudado_hoy_monto = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(Pago.fecha_pago == today).scalar() or 0.0
+    monto_esperado_hoy = due_today.get('monto_esperado_hoy', 0.0)
+    if monto_esperado_hoy > 0:
+        cumplimiento_hoy_pct = min(recaudado_hoy_monto / monto_esperado_hoy, 1.0)
+    else:
+        cumplimiento_hoy_pct = 0.0
+
+    total_clientes = summary['total_clientes'] or 0
+    clientes_activos = summary['clientes_activos'] or 0
+    activation_rate = (clientes_activos / total_clientes) if total_clientes > 0 else 0.0
+
+    return {
+        'timestamp': summary['timestamp'],
+        'total_clientes': total_clientes,
+        'total_prestamos': summary['total_prestamos'],
+        'monto_total_prestado': summary['monto_total_prestado'],
+        'monto_total_recaudado': summary['monto_total_recaudado'],
+        'monto_total_esperado': summary['monto_total_esperado'],
+        'saldo_pendiente_total': summary['saldo_pendiente_total'],
+        'prestamos_activos': summary['prestamos_activos'],
+        'prestamos_vencidos': summary['prestamos_vencidos'],
+        'pagos_hoy': summary['pagos_hoy'],
+        'monto_esperado_hoy': monto_esperado_hoy,
+        'recaudado_hoy_monto': round(recaudado_hoy_monto, 2),
+        'cumplimiento_hoy_pct': round(cumplimiento_hoy_pct, 4),
+        'tasa_recaudo': summary['tasa_recaudo'],
+        'average_loan_size': summary['average_loan_size'],
+        'ticket_promedio_pago': summary['ticket_promedio_pago'],
+        'clientes_activos': clientes_activos,
+        'activation_rate': round(activation_rate, 4)
+    }
+
+
+def get_daily_simple(db: Session, days: int = 1) -> dict:
+    """Resumen simplificado del período: prestado, prestado con intereses,
+    por cobrar (cuotas programadas) y cobrado en los últimos N días."""
+    from datetime import timedelta
+    today_date = date.today()
+    start_date = today_date - timedelta(days=days - 1)
+
+    # Préstamos creados en el período (principal y con intereses)
+    prestado_hoy = db.query(func.coalesce(func.sum(Prestamo.monto), 0)).filter(
+        func.date(Prestamo.created_at) >= start_date,
+        func.date(Prestamo.created_at) <= today_date
+    ).scalar() or 0.0
+    prestado_con_intereses_hoy = db.query(func.coalesce(func.sum(Prestamo.monto_total), 0)).filter(
+        func.date(Prestamo.created_at) >= start_date,
+        func.date(Prestamo.created_at) <= today_date
+    ).scalar() or 0.0
+
+    # Cobrado en el período (pagos realizados)
+    cobrado_hoy = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(
+        Pago.fecha_pago >= start_date,
+        Pago.fecha_pago <= today_date
+    ).scalar() or 0.0
+
+    # Por cobrar en el período (monto esperado de cuotas con fecha en el rango)
+    # Generar tabla de amortización para todos los préstamos activos
+    prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
+    por_cobrar_hoy = 0.0
+    for prestamo in prestamos_activos:
+        amortizacion = generar_amortizacion(prestamo, db)
+        for cuota in amortizacion:
+            from datetime import datetime as dt
+            fecha_cuota = dt.fromisoformat(cuota['fecha']).date()
+            if start_date <= fecha_cuota <= today_date:
+                if cuota['estado'] != 'Pagado':  # Solo cuotas pendientes o vencidas
+                    por_cobrar_hoy += cuota['monto']
+
+    return {
+        'fecha': today_date.isoformat(),
+        'prestado_hoy': round(prestado_hoy, 2),
+        'prestado_con_intereses_hoy': round(prestado_con_intereses_hoy, 2),
+        'por_cobrar_hoy': round(por_cobrar_hoy, 2),
+        'cobrado_hoy': round(cobrado_hoy, 2)
+    }
+
+
+def get_period_metrics(db: Session, period_type: str, start_date: date, end_date: date = None) -> dict:
+    """Obtiene métricas de un período específico (día, semana o mes)."""
+    if end_date is None:
+        end_date = start_date
+
+    # Préstamos creados en el período
+    start_datetime = datetime.combine(start_date, datetime.min.time())
+    end_datetime = datetime.combine(end_date, datetime.max.time())
+    
+    prestado = db.query(func.coalesce(func.sum(Prestamo.monto), 0)).filter(
+        Prestamo.created_at >= start_datetime,
+        Prestamo.created_at <= end_datetime
+    ).scalar() or 0.0
+    
+    prestado_con_intereses = db.query(func.coalesce(func.sum(Prestamo.monto_total), 0)).filter(
+        Prestamo.created_at >= start_datetime,
+        Prestamo.created_at <= end_datetime
+    ).scalar() or 0.0
+
+    # Pagos realizados en el período
+    cobrado = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(
+        Pago.fecha_pago >= start_date,
+        Pago.fecha_pago <= end_date
+    ).scalar() or 0.0
+
+    # Por cobrar: cuotas programadas en el período
+    prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
+    por_cobrar = 0.0
+    
+    for prestamo in prestamos_activos:
+        amortizacion = generar_amortizacion(prestamo, db)
+        for cuota in amortizacion:
+            from datetime import datetime as dt
+            fecha_cuota = dt.fromisoformat(cuota['fecha']).date()
+            if start_date <= fecha_cuota <= end_date:
+                if cuota['estado'] != 'Pagado':  # Solo cuotas pendientes o vencidas
+                    por_cobrar += cuota['monto']
+
+    return {
+        'start_date': start_date.isoformat(),
+        'end_date': end_date.isoformat(),
+        'prestado': round(prestado, 2),
+        'prestado_con_intereses': round(prestado_con_intereses, 2),
+        'por_cobrar': round(por_cobrar, 2),
+        'cobrado': round(cobrado, 2)
+    }
+
+
+def get_expectativas(db: Session, start_date: date, end_date: date = None) -> dict:
+    """Obtiene las expectativas de cobro para un período específico."""
+    if end_date is None:
+        end_date = start_date
+
+    prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
+    monto_esperado = 0.0
+    cantidad_cuotas = 0
+
+    for prestamo in prestamos_activos:
+        amortizacion = generar_amortizacion(prestamo, db)
+        for cuota in amortizacion:
+            from datetime import datetime as dt
+            fecha_cuota = dt.fromisoformat(cuota['fecha']).date()
+            if start_date <= fecha_cuota <= end_date:
+                if cuota['estado'] != 'Pagado':  # Solo cuotas pendientes o vencidas
+                    monto_esperado += cuota['monto']
+                    cantidad_cuotas += 1
+
+    return {
+        'start_date': start_date.isoformat(),
+        'end_date': end_date.isoformat(),
+        'monto_esperado': round(monto_esperado, 2),
+        'cantidad_cuotas': cantidad_cuotas
     }
