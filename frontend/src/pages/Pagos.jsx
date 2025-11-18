@@ -32,6 +32,19 @@ export default function Pagos() {
   const [porcentajeCobrador, setPorcentajeCobrador] = useState('');
   const [previewComision, setPreviewComision] = useState(null);
   const [previewError, setPreviewError] = useState(null);
+  
+  // Estados para filtros
+  const [filtros, setFiltros] = useState({
+    cobrador: 'todos', // 'todos', 'si', 'no', o empleado_id
+    montoMin: '',
+    montoMax: '',
+    fechaDesde: '',
+    fechaHasta: '',
+    metodoPago: 'todos', // 'todos', 'efectivo', 'transferencia', 'cheque'
+    cliente: '', // búsqueda por texto
+    tipoPago: 'todos' // 'todos', 'cuota', 'parcial', 'total'
+  });
+  const [cobradoresMap, setCobradoresMap] = useState({});
 
   useEffect(() => {
     const loadData = async () => {
@@ -55,6 +68,9 @@ export default function Pagos() {
         setPrestamos(prestamosData || []);
         setClientes(clientesData || []);
         setEmpleados(empleadosData || []);
+        
+        // Cargar información de cobradores para cada pago
+        await loadCobradoresInfo(pagosData || []);
         
         console.log('Préstamos cargados:', prestamosData);
         console.log('Location state:', location.state);
@@ -148,6 +164,33 @@ export default function Pagos() {
     const [year, month, day] = dateString.split('T')[0].split('-');
     const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('es-ES');
+  };
+
+  // Cargar información de cobradores para todos los pagos
+  const loadCobradoresInfo = async (pagosList) => {
+    const cobradoresData = {};
+    for (const pago of pagosList) {
+      try {
+        const res = await fetch(`/api/pagos/${pago.id}/cobrador`);
+        if (res.ok) {
+          const registro = await res.json();
+          if (registro?.empleado_id) {
+            cobradoresData[pago.id] = {
+              id: registro.empleado_id,
+              nombre: registro.empleado_nombre || 'Cobrador'
+            };
+          } else if (registro?.empleado_nombre) {
+            cobradoresData[pago.id] = {
+              id: null,
+              nombre: registro.empleado_nombre
+            };
+          }
+        }
+      } catch (err) {
+        // No hay cobrador para este pago
+      }
+    }
+    setCobradoresMap(cobradoresData);
   };
 
   const getMetodoPagoClass = (metodo) => {
@@ -254,6 +297,9 @@ export default function Pagos() {
       setPagos(pagosData || []);
       setPrestamos(prestamosData || []);
       
+      // Recargar información de cobradores
+      await loadCobradoresInfo(pagosData || []);
+      
       // Mostrar mensaje de éxito
       alert('¡Pago registrado exitosamente!');
       
@@ -292,19 +338,78 @@ export default function Pagos() {
     );
   }
 
-  const totalPagos = pagos.reduce((sum, pago) => sum + (pago.monto || 0), 0);
-  const pagosHoy = pagos.filter(p => new Date(p.fecha_pago).toDateString() === new Date().toDateString());
-  const pagosOrdenados = [...pagos].sort((a,b) => b.id - a.id);
-  const ultimoIdPago = pagosOrdenados.length ? pagosOrdenados[0].id : null;
+  // Filtrar pagos según los filtros aplicados
+  const pagosFiltrados = pagos.filter(pago => {
+    // Filtro por cobrador
+    if (filtros.cobrador !== 'todos') {
+      const tieneCobrador = cobradoresMap[pago.id];
+      if (filtros.cobrador === 'si' && !tieneCobrador) return false;
+      if (filtros.cobrador === 'no' && tieneCobrador) return false;
+      if (filtros.cobrador !== 'si' && filtros.cobrador !== 'no') {
+        // Es un empleado_id específico
+        if (!tieneCobrador || tieneCobrador.id !== parseInt(filtros.cobrador)) return false;
+      }
+    }
+    
+    // Filtro por monto mínimo
+    if (filtros.montoMin && parseFloat(pago.monto) < parseFloat(filtros.montoMin)) {
+      return false;
+    }
+    
+    // Filtro por monto máximo
+    if (filtros.montoMax && parseFloat(pago.monto) > parseFloat(filtros.montoMax)) {
+      return false;
+    }
+    
+    // Filtro por fecha desde
+    if (filtros.fechaDesde) {
+      const fechaPago = pago.fecha_pago?.split('T')[0] || pago.fecha_pago;
+      if (fechaPago < filtros.fechaDesde) return false;
+    }
+    
+    // Filtro por fecha hasta
+    if (filtros.fechaHasta) {
+      const fechaPago = pago.fecha_pago?.split('T')[0] || pago.fecha_pago;
+      if (fechaPago > filtros.fechaHasta) return false;
+    }
+    
+    // Filtro por método de pago
+    if (filtros.metodoPago !== 'todos') {
+      if (pago.metodo_pago?.toLowerCase() !== filtros.metodoPago.toLowerCase()) {
+        return false;
+      }
+    }
+    
+    // Filtro por cliente (búsqueda por texto)
+    if (filtros.cliente && filtros.cliente.trim() !== '') {
+      const prestamo = prestamos.find(p => p.id === pago.prestamo_id);
+      const cliente = prestamo ? clientes.find(c => c.id === prestamo.cliente_id) : null;
+      if (!cliente || !cliente.nombre.toLowerCase().includes(filtros.cliente.toLowerCase().trim())) {
+        return false;
+      }
+    }
+    
+    // Filtro por tipo de pago
+    if (filtros.tipoPago !== 'todos') {
+      if (pago.tipo_pago !== filtros.tipoPago) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+  
+  const pagosOrdenados = [...pagosFiltrados].sort((a,b) => b.id - a.id);
 
   return (
     <div className="container my-5">
       {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1 className="fw-bold text-dark">Gestión de Pagos</h1>
+        <h1 className="fw-bold" style={{ color: '#000' }}>Gestión de Pagos</h1>
         <div className="d-flex gap-2">
           <button
-            className="btn btn-success"
+            className="btn"
+            style={{ backgroundColor: '#ffc107', color: '#000', fontWeight: 'bold' }}
             onClick={() => setShowModal(true)}
           >
             Registrar Pago
@@ -330,40 +435,166 @@ export default function Pagos() {
         </div>
       )}
 
-      {/* Estadísticas */}
-      <div className="row mb-4">
-        <div className="col-md-3">
-          <div className="card text-center border-0 bg-light">
-            <div className="card-body">
-              <h5 className="card-title text-primary">{pagos.length}</h5>
-              <p className="card-text small">Total Pagos</p>
+      {/* Filtros */}
+      <div className="card border-0 shadow-sm mb-4" style={{ borderLeft: '4px solid #ffc107' }}>
+        <div className="card-body">
+          <h5 className="card-title mb-3" style={{ color: '#000', fontWeight: 'bold' }}>Filtros de Búsqueda</h5>
+          <div className="row g-3">
+            {/* Primera fila: Fechas y Cliente */}
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Fecha Desde</label>
+              <input
+                type="date"
+                className="form-control"
+                value={filtros.fechaDesde}
+                onChange={(e) => setFiltros({ ...filtros, fechaDesde: e.target.value })}
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Fecha Hasta</label>
+              <input
+                type="date"
+                className="form-control"
+                value={filtros.fechaHasta}
+                onChange={(e) => setFiltros({ ...filtros, fechaHasta: e.target.value })}
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Cliente</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Buscar por nombre..."
+                value={filtros.cliente}
+                onChange={(e) => setFiltros({ ...filtros, cliente: e.target.value })}
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Tipo de Pago</label>
+              <select
+                className="form-select"
+                value={filtros.tipoPago}
+                onChange={(e) => setFiltros({ ...filtros, tipoPago: e.target.value })}
+              >
+                <option value="todos">Todos</option>
+                <option value="cuota">Cuota</option>
+                <option value="parcial">Parcial</option>
+                <option value="total">Total</option>
+              </select>
+            </div>
+
+            {/* Segunda fila: Método de Pago, Montos y Cobrador */}
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Método de Pago</label>
+              <select
+                className="form-select"
+                value={filtros.metodoPago}
+                onChange={(e) => setFiltros({ ...filtros, metodoPago: e.target.value })}
+              >
+                <option value="todos">Todos</option>
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="cheque">Cheque</option>
+              </select>
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Monto Mínimo</label>
+              <input
+                type="number"
+                className="form-control"
+                placeholder="Ej: 100"
+                value={filtros.montoMin}
+                onChange={(e) => setFiltros({ ...filtros, montoMin: e.target.value })}
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label small fw-bold">Monto Máximo</label>
+              <input
+                type="number"
+                className="form-control"
+                placeholder="Ej: 10000"
+                value={filtros.montoMax}
+                onChange={(e) => setFiltros({ ...filtros, montoMax: e.target.value })}
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="form-label small fw-bold">Cobrador</label>
+              <select
+                className="form-select"
+                value={filtros.cobrador}
+                onChange={(e) => setFiltros({ ...filtros, cobrador: e.target.value })}
+              >
+                <option value="todos">Todos los pagos</option>
+                <option value="si">Con cobrador</option>
+                <option value="no">Sin cobrador</option>
+                <optgroup label="Por cobrador específico">
+                  {empleados.filter(e => e.puesto === 'Cobrador').map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                  ))}
+                </optgroup>
+              </select>
             </div>
           </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card text-center border-0 bg-light">
-            <div className="card-body">
-              <h5 className="card-title text-success">
-                {formatCurrency(totalPagos)}
-              </h5>
-              <p className="card-text small">Total Recaudado</p>
+          <div className="mt-3 d-flex justify-content-between align-items-center">
+            <div>
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => setFiltros({ 
+                  cobrador: 'todos', 
+                  montoMin: '', 
+                  montoMax: '',
+                  fechaDesde: '',
+                  fechaHasta: '',
+                  metodoPago: 'todos',
+                  cliente: '',
+                  tipoPago: 'todos'
+                })}
+              >
+                Limpiar Filtros
+              </button>
+              <button
+                className="btn btn-sm ms-2"
+                style={{ backgroundColor: '#ffc107', color: '#000', border: 'none' }}
+                onClick={() => {
+                  const hoy = new Date().toISOString().split('T')[0];
+                  setFiltros({ ...filtros, fechaDesde: hoy, fechaHasta: hoy });
+                }}
+              >
+                Hoy
+              </button>
+              <button
+                className="btn btn-sm btn-outline-secondary ms-2"
+                onClick={() => {
+                  const hoy = new Date();
+                  const hace7dias = new Date(hoy);
+                  hace7dias.setDate(hoy.getDate() - 7);
+                  setFiltros({ 
+                    ...filtros, 
+                    fechaDesde: hace7dias.toISOString().split('T')[0],
+                    fechaHasta: hoy.toISOString().split('T')[0]
+                  });
+                }}
+              >
+                Última semana
+              </button>
+              <button
+                className="btn btn-sm btn-outline-secondary ms-2"
+                onClick={() => {
+                  const hoy = new Date();
+                  const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+                  setFiltros({ 
+                    ...filtros, 
+                    fechaDesde: primerDiaMes.toISOString().split('T')[0],
+                    fechaHasta: hoy.toISOString().split('T')[0]
+                  });
+                }}
+              >
+                Este mes
+              </button>
             </div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card text-center border-0 bg-light">
-            <div className="card-body">
-              <h5 className="card-title text-warning">{pagosHoy.length}</h5>
-              <p className="card-text small">Pagos Hoy</p>
-            </div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="card text-center border-0 bg-light">
-            <div className="card-body">
-              <h5 className="card-title text-dark">{ultimoIdPago ? `#${ultimoIdPago}` : '-'}</h5>
-              <p className="card-text small">ID más reciente</p>
-            </div>
+            <span className="text-muted small">
+              Mostrando <strong style={{ color: '#ffc107' }}>{pagosOrdenados.length}</strong> de {pagos.length} pagos
+            </span>
           </div>
         </div>
       </div>
@@ -391,7 +622,7 @@ export default function Pagos() {
           <div className="card-body p-0">
             <div className="table-responsive">
               <table className="table table-hover mb-0">
-                <thead className="bg-light">
+                <thead style={{ backgroundColor: '#fff3cd' }}>
                   <tr>
                     <th>ID</th>
                     <th>Préstamo</th>
@@ -400,6 +631,7 @@ export default function Pagos() {
                     <th>Método</th>
                     <th>Fecha</th>
                     <th>Notas</th>
+                    <th>Cobrador</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
@@ -437,9 +669,20 @@ export default function Pagos() {
                           </span>
                         </td>
                         <td>
+                          {cobradoresMap[pago.id] ? (
+                            <span className="badge" style={{ backgroundColor: '#ffc107', color: '#000' }}>
+                              {cobradoresMap[pago.id].nombre}
+                            </span>
+                          ) : (
+                            <span className="text-muted">No</span>
+                          )}
+                        </td>
+                        <td>
                           <div className="btn-group">
                             <button
-                              className="btn btn-sm btn-outline-success"
+                              className="btn btn-sm"
+                              style={{ backgroundColor: '#ffc107', color: '#000', border: 'none' }}
+                              title="Descargar recibo"
                               title="Recibo clásico (formato)"
                               onClick={async () => {
                                 try {
@@ -449,39 +692,26 @@ export default function Pagos() {
                                   // Intentar obtener comisión del cobrador (si hay registro se asume que él recibió el pago)
                                   try {
                                     const res = await fetch(`/api/pagos/${pago.id}/cobrador`);
-                                    console.log('Response status:', res.status);
                                     if (res.ok) {
-                                      const text = await res.text();
-                                      console.log('Response text:', text.substring(0, 200));
-                                      const registro = JSON.parse(text);
-                                      console.log('Registro cobrador:', registro);
+                                      const registro = await res.json();
                                       if (registro?.empleado_id) {
                                         const empRes = await fetch(`/api/empleados/${registro.empleado_id}`);
                                         if (empRes.ok) {
-                                          const empText = await empRes.text();
-                                          console.log('Employee response text:', empText.substring(0, 200));
-                                          const emp = JSON.parse(empText);
-                                          console.log('Empleado completo:', emp);
+                                          const emp = await empRes.json();
                                           receptor = { nombre: emp.nombre, dni: emp.dni || '' };
                                         } else {
-                                          console.log('Usando nombre del registro:', registro.empleado_nombre);
                                           receptor = { nombre: registro.empleado_nombre, dni: '' };
                                         }
                                       } else if (registro?.empleado_nombre) {
-                                        console.log('Solo nombre en registro:', registro.empleado_nombre);
                                         receptor = { nombre: registro.empleado_nombre, dni: '' };
                                       }
-                                    } else {
-                                      console.log('No hay registro de cobrador para pago', pago.id);
                                     }
                                   } catch (err) {
-                                    console.log('Error buscando cobrador:', err);
-                                    console.log('Error completo:', err.message, err.stack);
+                                    // No hay cobrador para este pago
                                   }
 
                                   // Fallback a usuario autenticado (admin) solo si no se obtuvo cobrador
                                   if (!receptor) {
-                                    console.log('Usando fallback admin');
                                     const admin = await getCurrentUser().catch(() => null);
                                     if (admin) {
                                       receptor = { nombre: admin.nombre_completo || admin.username, dni: admin.dni || '' };
@@ -490,7 +720,6 @@ export default function Pagos() {
                                     }
                                   }
 
-                                  console.log('Receptor final:', receptor);
                                   await exportReciboPagoFormatoPDF({ pago, cliente, prestamo, receptor, metodo: pago.metodo_pago || 'efectivo' });
                                 } catch (e) {
                                   console.error('Error exportando Recibo formato', e);

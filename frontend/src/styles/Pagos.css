@@ -1,21 +1,22 @@
-/* Pagos.css */
+/* Pagos.css - Tema Amarillo */
 
 .pagos-container {
   min-height: 100vh;
-  background-color: white;
+  background-color: #fffef7;
   padding: 2rem;
 }
 
 .pagos-back-button {
   margin-bottom: 2rem;
   padding: 0.5rem 1rem;
-  background-color: #10b981;
+  background-color: #ffc107;
   border-radius: 0.5rem;
-  color: white;
+  color: #000;
+  font-weight: bold;
 }
 
 .pagos-back-button:hover {
-  background-color: #059669;
+  background-color: #ffb300;
 }
 
 .pagos-content {
@@ -26,17 +27,32 @@
 .pagos-title {
   font-size: 2.25rem;
   font-weight: bold;
-  color: #1f2937;
+  color: #ffc107;
   margin-bottom: 2rem;
 }
 
 .pagos-card {
   background-color: white;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 15px -3px rgba(255, 193, 7, 0.1);
   border-radius: 0.5rem;
   padding: 1.5rem;
+  border-left: 4px solid #ffc107;
 }
 
 .pagos-text {
   color: #4b5563;
+}
+
+/* Hover effect para filas de tabla */
+.table-hover tbody tr:hover {
+  background-color: #fff3cd;
+}
+
+/* Badge de cobrador */
+.badge-cobrador {
+  background-color: #ffc107;
+  color: #000;
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.25rem;
 }
