@@ -146,8 +146,21 @@ class Empleado(EmpleadoBase):
 class PagoCobrador(BaseModel):
     id: int
     pago_id: int
-    empleado_id: Optional[int]
-    empleado_nombre: Optional[str]
+    empleado_id: Optional[int] = None
+    empleado_nombre: Optional[str] = None
+    porcentaje: float
+    monto_comision: float
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PagoVendedor(BaseModel):
+    id: int
+    pago_id: int
+    empleado_id: Optional[int] = None
+    empleado_nombre: Optional[str] = None
     porcentaje: float
     monto_comision: float
     created_at: datetime
@@ -209,3 +222,74 @@ class Cuota(BaseModel):
     fecha: str  # ISO date
     monto: float
     estado: str  # Pagado, Vencido, Pendiente
+
+
+# ===== CAJA / MOVIMIENTOS =====
+class MovimientoCajaBase(BaseModel):
+    fecha: date
+    tipo: str  # ingreso | egreso
+    monto: float
+    categoria: Optional[str] = None  # desembolso_prestamo, pago_cuota, ajuste, gastos_operativos, ingreso_extra
+    descripcion: Optional[str] = None
+    referencia_tipo: Optional[str] = None  # prestamo | pago | manual
+    referencia_id: Optional[int] = None
+    usuario_id: Optional[int] = None
+
+class MovimientoCajaCreate(MovimientoCajaBase):
+    pass
+
+class MovimientoCaja(MovimientoCajaBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CierreCaja(BaseModel):
+    fecha: date
+    saldo_inicial: float
+    ingresos: float
+    egresos: float
+    saldo_esperado: float
+    saldo_final: Optional[float] = None
+    diferencia: Optional[float] = None
+    cerrado: bool
+    detalle_ingresos: dict
+    detalle_egresos: dict
+
+class CerrarDiaRequest(BaseModel):
+    fecha: date
+    saldo_final: float
+
+class CajaCierreResponse(BaseModel):
+    id: int
+    fecha: date
+    saldo_inicial: float
+    ingresos: float
+    egresos: float
+    saldo_esperado: float
+    saldo_final: Optional[float]
+    diferencia: Optional[float]
+    cerrado: bool
+    created_at: datetime
+    closed_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True
+
+
+# ===== SEGMENTACIÓN MÉTRICAS =====
+class SegmentItem(BaseModel):
+    grupo: str
+    prestamos: int
+    monto_prestado: float
+    monto_total: float
+    saldo_pendiente: float
+    promedio_monto: float
+
+class SegmentResponse(BaseModel):
+    dimension: str
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    total_prestamos: int
+    items: list[SegmentItem]

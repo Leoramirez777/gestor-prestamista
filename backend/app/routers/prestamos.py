@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import timedelta, date
 from app.database.database import get_db
-from app.models.models import Prestamo, Cliente, Empleado, PrestamoVendedor
+from app.models.models import Prestamo, Cliente, Empleado, PrestamoVendedor, MovimientoCaja
 from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate, Cuota, PrestamoVendedor as PrestamoVendedorSchema
 from app.amortization_service import generar_amortizacion
+from app.caja_service import actualizar_totales_cierre
 
 router = APIRouter()
 
@@ -86,6 +87,23 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
     db.add(db_prestamo)
     db.commit()
     db.refresh(db_prestamo)
+
+    # Crear movimiento de caja automático (egreso por desembolso)
+    movimiento_caja = MovimientoCaja(
+        fecha=db_prestamo.fecha_inicio,
+        tipo="egreso",
+        categoria="desembolso_prestamo",
+        descripcion=f"Desembolso préstamo #{db_prestamo.id} cliente {db_prestamo.cliente_id}",
+        monto=db_prestamo.monto,
+        referencia_tipo="prestamo",
+        referencia_id=db_prestamo.id,
+        usuario_id=None  # TODO: obtener del token
+    )
+    db.add(movimiento_caja)
+    db.commit()
+    
+    # Actualizar totales del cierre del día
+    actualizar_totales_cierre(db, db_prestamo.fecha_inicio)
 
     # Comisión vendedor (opcional)
     if prestamo.vendedor_porcentaje and prestamo.vendedor_porcentaje > 0 and prestamo.vendedor_id:

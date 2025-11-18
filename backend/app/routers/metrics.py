@@ -3,8 +3,17 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
 from calendar import monthrange
 from app.database.database import get_db
-from app.metrics_service import get_summary_metrics, get_due_today, get_due_next, get_kpis, get_daily_simple, get_period_metrics, get_expectativas
-from app.schemas.schemas import SummaryMetrics, KPIMetrics, DailySimpleMetrics
+from app.metrics_service import (
+    get_summary_metrics,
+    get_due_today,
+    get_due_next,
+    get_kpis,
+    get_daily_simple,
+    get_period_metrics,
+    get_expectativas,
+    get_segment_metrics
+)
+from app.schemas.schemas import SummaryMetrics, KPIMetrics, DailySimpleMetrics, SegmentResponse
 
 router = APIRouter()
 
@@ -95,3 +104,15 @@ def expectativas_month(month: str = Query(...), db: Session = Depends(get_db)):
     _, last_day = monthrange(year, month_num)
     end = date(year, month_num, last_day)
     return get_expectativas(db, start, end)
+
+
+@router.get("/segment", response_model=SegmentResponse)
+def metrics_segment(
+    dimension: str = Query(..., description="Dimensión: frecuencia_pago | estado | tamano | antiguedad | morosidad"),
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    db: Session = Depends(get_db)
+):
+    sd = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else None
+    ed = datetime.strptime(end_date, '%Y-%m-%d').date() if end_date else None
+    return get_segment_metrics(db, dimension, sd, ed)

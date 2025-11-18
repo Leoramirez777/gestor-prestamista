@@ -206,6 +206,18 @@ function App({ onLogout }) {
     statLabel: 'Total en Sistema'
   });
 
+  // Tarjeta de Caja
+  menuItems.push({
+    title: 'Caja Diaria',
+    description: 'Consulta ingresos, egresos y saldo de caja',
+    icon: 'fas fa-cash-register',
+    path: '/caja',
+    newPath: '/caja',
+    color: 'danger',
+    stat: '',
+    statLabel: 'Hoy'
+  });
+
 
   if (loading) {
     return (

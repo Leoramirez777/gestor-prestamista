@@ -102,6 +102,18 @@ class PagoCobrador(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class PagoVendedor(Base):
+    __tablename__ = "pagos_vendedores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pago_id = Column(Integer, ForeignKey("pagos.id"), nullable=False)
+    empleado_id = Column(Integer, ForeignKey("empleados.id"), nullable=True)
+    empleado_nombre = Column(String(100))  # seguridad por si se elimina el empleado
+    porcentaje = Column(Float, nullable=False)  # % del pago según préstamo
+    monto_comision = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # === COMISION VENDEDOR POR PRÉSTAMO ===
 class PrestamoVendedor(Base):
     __tablename__ = "prestamos_vendedores"
@@ -115,4 +127,38 @@ class PrestamoVendedor(Base):
     monto_base = Column(Float, nullable=False)
     monto_comision = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# === MOVIMIENTOS DE CAJA ===
+class MovimientoCaja(Base):
+    __tablename__ = "caja_movimientos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha = Column(Date, nullable=False)
+    tipo = Column(String(20), nullable=False)  # ingreso | egreso
+    categoria = Column(String(50), nullable=True)  # desembolso_prestamo, pago_cuota, ajuste, gastos_operativos, ingreso_extra
+    descripcion = Column(String(200), nullable=True)
+    monto = Column(Float, nullable=False)
+    referencia_tipo = Column(String(30), nullable=True)  # prestamo | pago | manual
+    referencia_id = Column(Integer, nullable=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# === CIERRES DE CAJA ===
+class CajaCierre(Base):
+    __tablename__ = "caja_cierres"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha = Column(Date, nullable=False, unique=True, index=True)
+    saldo_inicial = Column(Float, default=0.0)
+    ingresos = Column(Float, default=0.0)
+    egresos = Column(Float, default=0.0)
+    saldo_esperado = Column(Float, default=0.0)  # saldo_inicial + ingresos - egresos
+    saldo_final = Column(Float, nullable=True)  # confirmado al cerrar
+    diferencia = Column(Float, nullable=True)  # saldo_final - saldo_esperado
+    cerrado = Column(Boolean, default=False)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    closed_at = Column(DateTime, nullable=True)
 

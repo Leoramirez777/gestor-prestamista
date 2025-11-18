@@ -271,3 +271,92 @@ def get_expectativas(db: Session, start_date: date, end_date: date = None) -> di
         'monto_esperado': round(monto_esperado, 2),
         'cantidad_cuotas': cantidad_cuotas
     }
+
+
+def get_segment_metrics(db: Session, dimension: str, start_date: date = None, end_date: date = None) -> dict:
+    """Agrupa préstamos por dimensión solicitada."""
+    query = db.query(Prestamo)
+    if start_date and end_date:
+        # Filtramos por fecha de inicio de préstamo en rango
+        query = query.filter(Prestamo.fecha_inicio >= start_date, Prestamo.fecha_inicio <= end_date)
+
+    prestamos = query.all()
+    grupos = {}
+
+    today = date.today()
+
+    def bucket_tamano(monto: float) -> str:
+        if monto < 500:
+            return 'micro'
+        if monto < 1000:
+            return 'pequeno'
+        if monto < 5000:
+            return 'mediano'
+        return 'grande'
+
+    def bucket_antiguedad(dias: int) -> str:
+        if dias <= 7:
+            return '0-7'
+        if dias <= 30:
+            return '8-30'
+        if dias <= 90:
+            return '31-90'
+        return '91+'
+
+    def bucket_morosidad(p: Prestamo) -> str:
+        if p.estado == 'pagado':
+            return 'pagado'
+        if p.fecha_vencimiento < today and p.saldo_pendiente > 0:
+            return 'vencido'
+        return 'al_dia'
+
+    for p in prestamos:
+        if dimension == 'frecuencia_pago':
+            key = p.frecuencia_pago or 'desconocida'
+        elif dimension == 'estado':
+            key = p.estado or 'desconocido'
+        elif dimension == 'tamano':
+            key = bucket_tamano(p.monto)
+        elif dimension == 'antiguedad':
+            dias = (today - p.fecha_inicio).days
+            key = bucket_antiguedad(dias)
+        elif dimension == 'morosidad':
+            key = bucket_morosidad(p)
+        else:
+            key = 'otros'
+
+        g = grupos.setdefault(key, {
+            'grupo': key,
+            'prestamos': 0,
+            'monto_prestado': 0.0,
+            'monto_total': 0.0,
+            'saldo_pendiente': 0.0
+        })
+        g['prestamos'] += 1
+        g['monto_prestado'] += p.monto
+        g['monto_total'] += p.monto_total
+        g['saldo_pendiente'] += p.saldo_pendiente
+
+    items = []
+    total_prestamos = 0
+    for key, data in grupos.items():
+        total_prestamos += data['prestamos']
+        promedio = data['monto_prestado'] / data['prestamos'] if data['prestamos'] > 0 else 0.0
+        items.append({
+            'grupo': key,
+            'prestamos': data['prestamos'],
+            'monto_prestado': round(data['monto_prestado'], 2),
+            'monto_total': round(data['monto_total'], 2),
+            'saldo_pendiente': round(data['saldo_pendiente'], 2),
+            'promedio_monto': round(promedio, 2)
+        })
+
+    items.sort(key=lambda x: x['grupo'])
+
+    return {
+        'dimension': dimension,
+        'start_date': start_date.isoformat() if start_date else None,
+        'end_date': end_date.isoformat() if end_date else None,
+        'total_prestamos': total_prestamos,
+        'items': items
+    }

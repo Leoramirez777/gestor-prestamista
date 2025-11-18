@@ -1,11 +1,26 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import clientes, prestamos, pagos, auth, metrics, empleados
-from app.database.database import engine
+from app.routers import clientes, prestamos, pagos, auth, metrics, empleados, caja
+from app.database.database import engine, SessionLocal
 from app.models import models
+from app.caja_service import backfill_caja_movimientos
 
 # Crear las tablas en la base de datos
 models.Base.metadata.create_all(bind=engine)
+
+# Backfill movimientos de caja si está vacío
+def init_backfill():
+    db = SessionLocal()
+    try:
+        creados = backfill_caja_movimientos(db)
+        if creados:
+            print(f"[Caja] Backfill inicial completado: {creados} movimientos creados.")
+    except Exception as e:
+        print(f"[Caja] Error en backfill inicial: {e}")
+    finally:
+        db.close()
+
+init_backfill()
 
 app = FastAPI(
     title="Gestor Prestamista API",
@@ -29,6 +44,7 @@ app.include_router(prestamos.router, prefix="/api/prestamos", tags=["Préstamos"
 app.include_router(pagos.router, prefix="/api/pagos", tags=["Pagos"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["Métricas"])
 app.include_router(empleados.router)
+app.include_router(caja.router)
 
 @app.get("/")
 def read_root():

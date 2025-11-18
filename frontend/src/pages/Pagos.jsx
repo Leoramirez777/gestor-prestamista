@@ -32,6 +32,7 @@ export default function Pagos() {
   const [porcentajeCobrador, setPorcentajeCobrador] = useState('');
   const [previewComision, setPreviewComision] = useState(null);
   const [previewError, setPreviewError] = useState(null);
+  const [vendedorPrestamo, setVendedorPrestamo] = useState(null); // Info del vendedor del préstamo seleccionado
   
   // Estados para filtros
   const [filtros, setFiltros] = useState({
@@ -203,7 +204,7 @@ export default function Pagos() {
     }
   };
 
-  const handleFormChange = (e) => {
+  const handleFormChange = async (e) => {
     const { name, value } = e.target;
     
     if (name === 'prestamo_id') {
@@ -221,6 +222,24 @@ export default function Pagos() {
         tipo_pago: 'cuota',
         monto: montoCuotaActual
       }));
+      
+      // Cargar información del vendedor si existe
+      if (value) {
+        try {
+          const res = await fetch(`/api/prestamos/${value}/vendedor`);
+          if (res.ok) {
+            const vendedorData = await res.json();
+            setVendedorPrestamo(vendedorData);
+          } else {
+            setVendedorPrestamo(null);
+          }
+        } catch (err) {
+          console.log('No hay vendedor para este préstamo');
+          setVendedorPrestamo(null);
+        }
+      } else {
+        setVendedorPrestamo(null);
+      }
     } else if (name === 'tipo_pago') {
       let nuevoMonto = '';
       if (prestamoSeleccionado) {
@@ -903,6 +922,30 @@ export default function Pagos() {
                       </label>
                     </div>
                   </div>
+
+                  {/* Información del vendedor si existe */}
+                  {vendedorPrestamo && (
+                    <div className="alert alert-info mb-3">
+                      <div className="d-flex align-items-center">
+                        <i className="fas fa-user-tie me-2"></i>
+                        <div className="flex-grow-1">
+                          <strong>Vendedor del préstamo:</strong> {vendedorPrestamo.empleado_nombre}<br />
+                          <small className="text-muted">
+                            Porcentaje acordado: <strong>{vendedorPrestamo.porcentaje}%</strong> sobre el pago
+                          </small>
+                          {formData.monto && parseFloat(formData.monto) > 0 && (
+                            <>
+                              <br />
+                              <small className="text-success">
+                                <i className="fas fa-calculator me-1"></i>
+                                Comisión sobre este pago: <strong>{formatCurrency((parseFloat(formData.monto) * parseFloat(vendedorPrestamo.porcentaje)) / 100)}</strong>
+                              </small>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {cobradorHabilitado && (
                     <>

@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.database.database import get_db
-from app.models.models import Empleado, PagoCobrador, PrestamoVendedor
-from app.schemas.schemas import Empleado as EmpleadoSchema, EmpleadoCreate, EmpleadoUpdate, PagoCobrador as PagoCobradorSchema, PrestamoVendedor as PrestamoVendedorSchema
+from app.models.models import Empleado, PagoCobrador, PagoVendedor, PrestamoVendedor
+from app.schemas.schemas import Empleado as EmpleadoSchema, EmpleadoCreate, EmpleadoUpdate, PagoCobrador as PagoCobradorSchema, PagoVendedor as PagoVendedorSchema, PrestamoVendedor as PrestamoVendedorSchema
 
 router = APIRouter(prefix="/api/empleados", tags=["Empleados"])
 
@@ -68,3 +68,14 @@ def obtener_comisiones_vendedor(empleado_id: int, db: Session = Depends(get_db))
         .all()
     )
     return registros
+
+
+@router.get("/{empleado_id}/comisiones-pago-vendedor", response_model=List[PagoVendedorSchema])
+def obtener_comisiones_pago_vendedor(empleado_id: int, db: Session = Depends(get_db)):
+    """Obtener todas las comisiones del vendedor por pagos realizados"""
+    emp = db.query(Empleado).filter(Empleado.id == empleado_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    
+    comisiones = db.query(PagoVendedor).filter(PagoVendedor.empleado_id == empleado_id).order_by(PagoVendedor.created_at.desc()).all()
+    return comisiones

@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import date
 from app.database.database import get_db
-from app.models.models import Pago, Prestamo, PagoCobrador, Empleado
-from app.schemas.schemas import Pago as PagoSchema, PagoCreate, PagoCobrador as PagoCobradorSchema
+from app.models.models import Pago, Prestamo, PagoCobrador, PagoVendedor, PrestamoVendedor, Empleado, MovimientoCaja
+from app.schemas.schemas import Pago as PagoSchema, PagoCreate, PagoCobrador as PagoCobradorSchema, PagoVendedor as PagoVendedorSchema
+from app.caja_service import actualizar_totales_cierre
 
 router = APIRouter()
 
@@ -130,6 +131,23 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_pago)
 
+    # Crear movimiento de caja automático (ingreso por pago)
+    movimiento_caja = MovimientoCaja(
+        fecha=db_pago.fecha_pago,
+        tipo="ingreso",
+        categoria="pago_cuota",
+        descripcion=f"Pago #{db_pago.id} préstamo {db_pago.prestamo_id}",
+        monto=db_pago.monto,
+        referencia_tipo="pago",
+        referencia_id=db_pago.id,
+        usuario_id=None  # TODO: obtener del token
+    )
+    db.add(movimiento_caja)
+    db.commit()
+    
+    # Actualizar totales del cierre del día
+    actualizar_totales_cierre(db, db_pago.fecha_pago)
+
     # Crear registro de comisión del cobrador si corresponde
     if porcentaje_cobrador is not None:
         if porcentaje_cobrador < 0 or porcentaje_cobrador > 100:
@@ -155,6 +173,26 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
         db.add(registro)
         db.commit()
 
+    # Registrar comisión del vendedor si existe en el préstamo
+    prestamo_vendedor = db.query(PrestamoVendedor).filter(
+        PrestamoVendedor.prestamo_id == prestamo.id
+    ).first()
+    
+    if prestamo_vendedor and prestamo_vendedor.porcentaje > 0:
+        # Calcular comisión del vendedor sobre el monto del pago
+        porcentaje_vendedor = float(prestamo_vendedor.porcentaje)
+        monto_comision_vendedor = round(float(pago.monto) * porcentaje_vendedor / 100.0, 2)
+        
+        registro_vendedor = PagoVendedor(
+            pago_id=db_pago.id,
+            empleado_id=prestamo_vendedor.empleado_id,
+            empleado_nombre=prestamo_vendedor.empleado_nombre,
+            porcentaje=porcentaje_vendedor,
+            monto_comision=monto_comision_vendedor
+        )
+        db.add(registro_vendedor)
+        db.commit()
+
     return db_pago
 
 
@@ -163,6 +201,14 @@ def get_pago_cobrador(pago_id: int, db: Session = Depends(get_db)):
     registro = db.query(PagoCobrador).filter(PagoCobrador.pago_id == pago_id).first()
     if not registro:
         raise HTTPException(status_code=404, detail="No hay comisión registrada para este pago")
+    return registro
+
+
+@router.get("/{pago_id}/vendedor", response_model=PagoVendedorSchema)
+def get_pago_vendedor(pago_id: int, db: Session = Depends(get_db)):
+    registro = db.query(PagoVendedor).filter(PagoVendedor.pago_id == pago_id).first()
+    if not registro:
+        raise HTTPException(status_code=404, detail="No hay comisión de vendedor registrada para este pago")
     return registro
 
 
