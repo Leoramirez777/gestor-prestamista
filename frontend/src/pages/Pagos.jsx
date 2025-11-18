@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { fetchPagos, createPago } from '../api/pagos';
+import { fetchPagos, createPago, previewPagoCobrador } from '../api/pagos';
 import { fetchPrestamos } from '../api/prestamos';
 import { fetchClientes } from '../api/clientes';
+import { fetchEmpleados } from '../api/empleados';
 import '../styles/Pagos.css';
 
 export default function Pagos() {
@@ -23,6 +24,12 @@ export default function Pagos() {
   });
   const [creatingPago, setCreatingPago] = useState(false);
   const [prestamoSeleccionado, setPrestamoSeleccionado] = useState(null);
+  const [empleados, setEmpleados] = useState([]);
+  const [cobradorHabilitado, setCobradorHabilitado] = useState(false);
+  const [cobradorId, setCobradorId] = useState('');
+  const [porcentajeCobrador, setPorcentajeCobrador] = useState('');
+  const [previewComision, setPreviewComision] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -30,15 +37,22 @@ export default function Pagos() {
         setLoading(true);
         
         // Cargar todos los datos en paralelo
-        const [pagosData, prestamosData, clientesData] = await Promise.all([
+        let [pagosData, prestamosData, clientesData, empleadosData] = await Promise.all([
           fetchPagos(),
           fetchPrestamos(),
-          fetchClientes()
+          fetchClientes(),
+          fetchEmpleados({ puesto: 'Cobrador' })
         ]);
+
+        // Fallback: si no hay cobradores, cargar todos los empleados
+        if (!empleadosData || empleadosData.length === 0) {
+          empleadosData = await fetchEmpleados();
+        }
         
         setPagos(pagosData || []);
         setPrestamos(prestamosData || []);
         setClientes(clientesData || []);
+        setEmpleados(empleadosData || []);
         
         console.log('Préstamos cargados:', prestamosData);
         console.log('Location state:', location.state);
@@ -70,6 +84,43 @@ export default function Pagos() {
     
     loadData();
   }, [location.state, location.search]);
+
+  // Refrescar lista de cobradores cada vez que se abre el modal
+  useEffect(() => {
+    const refreshCobradores = async () => {
+      try {
+        if (showModal) {
+          let data = await fetchEmpleados({ puesto: 'Cobrador' });
+          if (!data || data.length === 0) {
+            data = await fetchEmpleados();
+          }
+          setEmpleados(data || []);
+        }
+      } catch (e) {
+        console.error('No se pudieron cargar cobradores:', e);
+      }
+    };
+    refreshCobradores();
+  }, [showModal]);
+
+  // Preview de comisión calculado por el backend
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (!showModal || !cobradorHabilitado) { setPreviewComision(null); setPreviewError(null); return; }
+        const monto = parseFloat(formData.monto || '0');
+        const porc = parseFloat(porcentajeCobrador || '0');
+        if (isNaN(monto) || monto <= 0 || isNaN(porc) || porc <= 0) { setPreviewComision(null); setPreviewError(null); return; }
+        const res = await previewPagoCobrador({ monto, porcentaje: porc });
+        setPreviewComision(res?.monto_comision ?? null);
+        setPreviewError(null);
+      } catch (e) {
+        setPreviewComision(null);
+        setPreviewError('No se pudo calcular la comisión (servidor no disponible)');
+      }
+    };
+    run();
+  }, [showModal, cobradorHabilitado, formData.monto, porcentajeCobrador]);
 
   const getPrestamoInfo = (prestamoId) => {
     const prestamo = prestamos.find(p => p.id === prestamoId);
@@ -180,6 +231,14 @@ export default function Pagos() {
         fecha_pago: new Date().toISOString().split('T')[0]
       };
 
+      // Adjuntar cobrador si está habilitado
+      if (cobradorHabilitado && porcentajeCobrador) {
+        pagoData.porcentaje_cobrador = parseFloat(porcentajeCobrador);
+        if (cobradorId) {
+          pagoData.cobrador_id = parseInt(cobradorId);
+        }
+      }
+
       console.log('Enviando datos del pago:', pagoData);
 
       const nuevoPago = await createPago(pagoData);
@@ -206,6 +265,9 @@ export default function Pagos() {
       });
       setPrestamoSeleccionado(null);
       setShowModal(false);
+      setCobradorHabilitado(false);
+      setCobradorId('');
+      setPorcentajeCobrador('');
       
     } catch (error) {
       console.error('Error al crear pago:', error);
@@ -536,6 +598,73 @@ export default function Pagos() {
                       <option value="tarjeta">Tarjeta</option>
                     </select>
                   </div>
+
+                  {/* Cobrador */}
+                  <div className="mb-3">
+                    <label className="form-label">Cobrador</label>
+                    <div className="form-check form-switch">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="cobrador_switch"
+                        checked={cobradorHabilitado}
+                        onChange={(e) => setCobradorHabilitado(e.target.checked)}
+                      />
+                      <label className="form-check-label" htmlFor="cobrador_switch">
+                        {cobradorHabilitado ? 'Sí' : 'No'}
+                      </label>
+                    </div>
+                  </div>
+
+                  {cobradorHabilitado && (
+                    <>
+                      <div className="mb-3">
+                        <label className="form-label">Seleccionar Cobrador</label>
+                        <select
+                          className="form-select"
+                          value={cobradorId}
+                          onChange={(e) => setCobradorId(e.target.value)}
+                        >
+                          <option value="">Seleccionar...</option>
+                          {empleados.map(emp => (
+                            <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                          ))}
+                        </select>
+                        {empleados.length === 0 && (
+                          <div className="form-text">No hay cobradores cargados en el sistema</div>
+                        )}
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="form-label">Porcentaje sobre este pago</label>
+                        <div className="input-group">
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={porcentajeCobrador}
+                            onChange={(e) => setPorcentajeCobrador(e.target.value)}
+                          />
+                          <span className="input-group-text">%</span>
+                        </div>
+                        <div className="form-text">Se calcula sobre el monto del pago, no del préstamo.</div>
+                        {previewError && (
+                          <div className="alert alert-danger mt-2 py-2 mb-0">
+                            <small>{previewError}</small>
+                          </div>
+                        )}
+                        {previewComision != null && !previewError && (
+                          <div className="alert alert-light border mt-2 py-2 mb-0">
+                            <small className="text-muted d-block">El pago al cobrador es:</small>
+                            <strong className="text-dark">{formatCurrency(previewComision)}</strong>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
 
                   <div className="mb-3">
                     <label htmlFor="notas" className="form-label">Notas</label>

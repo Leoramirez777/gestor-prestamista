@@ -17,6 +17,8 @@ import Pagos from './pages/Pagos.jsx'
 import Resumen from './pages/Resumen.jsx'
 import Ajustes from './pages/Ajustes.jsx'
 import Empleados from './pages/Empleados.jsx'
+import VerEmpleados from './pages/VerEmpleados.jsx'
+import PerfilEmpleado from './pages/PerfilEmpleado.jsx'
 import { isAuthenticated } from './api/auth.js'
 
 function AppRouter() {
@@ -139,6 +141,22 @@ function AppRouter() {
         element={
           <ProtectedRoute isAuth={isAuth}>
             <Empleados />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/ver-empleados"
+        element={
+          <ProtectedRoute isAuth={isAuth}>
+            <VerEmpleados />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/empleados/:id"
+        element={
+          <ProtectedRoute isAuth={isAuth}>
+            <PerfilEmpleado />
           </ProtectedRoute>
         }
       />

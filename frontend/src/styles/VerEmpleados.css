@@ -1,0 +1,50 @@
+/* VerEmpleados.css */
+
+.empleados-title {
+  color: #000000ff;
+}
+
+.empleados-back-button {
+  border-color: #0d6efd;
+  color: #0d6efd;
+}
+
+.empleados-back-button:hover {
+  background-color: #0d6efd;
+  color: white;
+}
+
+.empleados-spinner {
+  color: #0d6efd;
+}
+
+.empleado-card {
+  border-color: #0d6efd;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.empleado-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(13, 110, 253, 0.2) !important;
+}
+
+.empleado-avatar {
+  width: 60px;
+  height: 60px;
+  background-color: #0d6efd40;
+  color: #0d6efd;
+}
+
+.empleado-name {
+  color: #000000;
+}
+
+.empleado-ver-detalle {
+  background-color: #0d6efd;
+  color: white;
+  border: none;
+}
+
+.empleado-ver-detalle:hover {
+  background-color: #0b5ed7;
+}

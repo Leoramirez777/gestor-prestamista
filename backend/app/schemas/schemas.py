@@ -80,12 +80,50 @@ class PagoBase(BaseModel):
     notas: Optional[str] = None
 
 class PagoCreate(PagoBase):
-    pass
+    # Campos adicionales solo para creación (no pertenecen al modelo Pago)
+    cobrador_id: Optional[int] = None
+    cobrador_nombre: Optional[str] = None
+    porcentaje_cobrador: Optional[float] = None  # % sobre el monto del pago
 
 class Pago(PagoBase):
     id: int
     created_at: datetime
     
+    class Config:
+        from_attributes = True
+
+
+# ===== EMPLEADOS =====
+class EmpleadoBase(BaseModel):
+    nombre: str
+    puesto: Optional[str] = "Cobrador"
+    telefono: Optional[str] = None
+    dni: Optional[str] = None
+    email: Optional[str] = None
+    direccion: Optional[str] = None
+    fecha_nacimiento: Optional[date] = None
+
+class EmpleadoCreate(EmpleadoBase):
+    pass
+
+class Empleado(EmpleadoBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ===== COMISION COBRADOR (respuesta)
+class PagoCobrador(BaseModel):
+    id: int
+    pago_id: int
+    empleado_id: Optional[int]
+    empleado_nombre: Optional[str]
+    porcentaje: float
+    monto_comision: float
+    created_at: datetime
+
     class Config:
         from_attributes = True
 

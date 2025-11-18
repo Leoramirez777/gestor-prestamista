@@ -3,10 +3,26 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import date
 from app.database.database import get_db
-from app.models.models import Pago, Prestamo
-from app.schemas.schemas import Pago as PagoSchema, PagoCreate
+from app.models.models import Pago, Prestamo, PagoCobrador, Empleado
+from app.schemas.schemas import Pago as PagoSchema, PagoCreate, PagoCobrador as PagoCobradorSchema
 
 router = APIRouter()
+
+# Colocar rutas estáticas antes de rutas dinámicas para evitar conflictos
+@router.get("/preview-cobrador")
+def preview_cobrador(monto: float, porcentaje: float):
+    """Calcula la comisión del cobrador sin registrar nada en la base.
+
+    Parámetros por query:
+    - monto: Monto del pago
+    - porcentaje: Porcentaje sobre el monto (0-100)
+    """
+    if monto < 0:
+        raise HTTPException(status_code=400, detail="El monto debe ser mayor o igual a 0")
+    if porcentaje < 0 or porcentaje > 100:
+        raise HTTPException(status_code=400, detail="El porcentaje debe estar entre 0 y 100")
+    monto_comision = round(float(monto) * float(porcentaje) / 100.0, 2)
+    return {"monto_comision": monto_comision}
 
 @router.get("/", response_model=List[PagoSchema])
 def get_pagos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -46,6 +62,12 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     # Crear el pago con la fecha de hoy
     pago_data = pago.model_dump()
     pago_data['fecha_pago'] = date.today()  # Forzar fecha de hoy
+    
+    # Extraer campos que NO pertenecen al modelo Pago
+    cobrador_id = pago_data.pop('cobrador_id', None)
+    cobrador_nombre = pago_data.pop('cobrador_nombre', None)
+    porcentaje_cobrador = pago_data.pop('porcentaje_cobrador', None)
+    
     db_pago = Pago(**pago_data)
     db.add(db_pago)
     
@@ -107,7 +129,42 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     
     db.commit()
     db.refresh(db_pago)
+
+    # Crear registro de comisión del cobrador si corresponde
+    if porcentaje_cobrador is not None:
+        if porcentaje_cobrador < 0 or porcentaje_cobrador > 100:
+            raise HTTPException(status_code=400, detail="El porcentaje del cobrador debe estar entre 0 y 100")
+    if porcentaje_cobrador and float(porcentaje_cobrador) > 0:
+        porcentaje = float(porcentaje_cobrador)
+        monto_comision = round(float(pago.monto) * porcentaje / 100.0, 2)
+
+        empleado_nombre_final = None
+        if cobrador_id:
+            empleado = db.query(Empleado).filter(Empleado.id == cobrador_id).first()
+            empleado_nombre_final = empleado.nombre if empleado else cobrador_nombre
+        else:
+            empleado_nombre_final = cobrador_nombre
+
+        registro = PagoCobrador(
+            pago_id=db_pago.id,
+            empleado_id=cobrador_id,
+            empleado_nombre=empleado_nombre_final,
+            porcentaje=porcentaje,
+            monto_comision=monto_comision
+        )
+        db.add(registro)
+        db.commit()
+
     return db_pago
+
+
+@router.get("/{pago_id}/cobrador", response_model=PagoCobradorSchema)
+def get_pago_cobrador(pago_id: int, db: Session = Depends(get_db)):
+    registro = db.query(PagoCobrador).filter(PagoCobrador.pago_id == pago_id).first()
+    if not registro:
+        raise HTTPException(status_code=404, detail="No hay comisión registrada para este pago")
+    return registro
+
 
 @router.delete("/{pago_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_pago(pago_id: int, db: Session = Depends(get_db)):

@@ -43,3 +43,12 @@ export async function deletePago(id) {
     handleApiError(err);
   }
 }
+
+export async function previewPagoCobrador({ monto, porcentaje }) {
+  try {
+    const { data } = await api.get('/api/pagos/preview-cobrador', { params: { monto, porcentaje } });
+    return data; // { monto_comision }
+  } catch (err) {
+    handleApiError(err);
+  }
+}

@@ -301,3 +301,41 @@
     padding: 8px 12px;
   }
 }
+der {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 576px) {
+  .resumen-title {
+    font-size: 1.4rem;
+  }
+  
+  .metric-amount {
+    font-size: 1.5rem;
+  }
+  
+  .metric-value {
+    font-size: 1.4rem;
+  }
+  
+  .section-title {
+    font-size: 0.95rem;
+    padding: 8px 12px;
+{
+  .resumen-title {
+    font-size: 1.5rem;
+  }
+
+  .stat-card {
+    min-height: 140px;
+  }
+
+  .stat-value {
+    font-size: 1.3rem;
+  }
+
+  .metric-value {
+    font-size: 1.3rem;
+  }
+}

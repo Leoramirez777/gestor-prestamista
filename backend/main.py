@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import clientes, prestamos, pagos, auth, metrics
+from app.routers import clientes, prestamos, pagos, auth, metrics, empleados
 from app.database.database import engine
 from app.models import models
 
@@ -16,7 +16,7 @@ app = FastAPI(
 # Configuración CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
+    allow_origins=["*"],  # Permitir todos los orígenes en desarrollo
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,6 +28,7 @@ app.include_router(clientes.router, prefix="/api/clientes", tags=["Clientes"])
 app.include_router(prestamos.router, prefix="/api/prestamos", tags=["Préstamos"])
 app.include_router(pagos.router, prefix="/api/pagos", tags=["Pagos"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["Métricas"])
+app.include_router(empleados.router)
 
 @app.get("/")
 def read_root():

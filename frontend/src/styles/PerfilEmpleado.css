@@ -1,0 +1,39 @@
+/* PerfilEmpleado.css - variante morada */
+
+.empleado-title {
+  color: #6f42c1;
+}
+
+.empleado-back-button {
+  border-color: #6f42c1;
+  color: #6f42c1;
+}
+
+.empleado-back-button:hover {
+  background-color: #6f42c1;
+  color: #fff;
+}
+
+.empleado-spinner {
+  color: #6f42c1;
+}
+
+.empleado-card {
+  border-color: #6f42c1;
+}
+
+.empleado-card-header {
+  background-color: #6f42c1;
+  color: #fff;
+}
+
+.empleado-avatar {
+  width: 60px;
+  height: 60px;
+  background-color: rgba(111, 66, 193, 0.2);
+  color: #6f42c1;
+}
+
+.empleado-comision-amount {
+  color: #6f42c1;
+}

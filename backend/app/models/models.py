@@ -69,3 +69,31 @@ class Pago(Base):
     
     # Relación
     prestamo = relationship("Prestamo", back_populates="pagos")
+
+
+# === EMPLEADOS ===
+class Empleado(Base):
+    __tablename__ = "empleados"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(100), nullable=False)
+    puesto = Column(String(50), default="Cobrador")  # Cobrador, Vendedor, Otro
+    telefono = Column(String(20))
+    dni = Column(String(20))
+    email = Column(String(100))
+    direccion = Column(String(200))
+    fecha_nacimiento = Column(Date, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class PagoCobrador(Base):
+    __tablename__ = "pagos_cobradores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pago_id = Column(Integer, ForeignKey("pagos.id"), nullable=False)
+    empleado_id = Column(Integer, ForeignKey("empleados.id"), nullable=True)
+    empleado_nombre = Column(String(100))  # seguridad por si se elimina el empleado
+    porcentaje = Column(Float, nullable=False)  # % del pago (no del préstamo)
+    monto_comision = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+

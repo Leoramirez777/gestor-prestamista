@@ -329,7 +329,7 @@ function App({ onLogout }) {
                   <div className="d-grid gap-2">
                     <button
                       className="btn btn-purple btn-lg fw-semibold"
-                      onClick={() => navegarA('/empleados')}
+                      onClick={() => navegarA('/ver-empleados')}
                       style={{ borderRadius: '10px' }}
                     >
                       <span className="me-2" style={{ fontSize: '1.1rem' }}>👤</span>
