@@ -359,7 +359,7 @@ export async function exportContratoPrestamoFormatoPDF({ prestamo, cliente, vend
   doc.save(`Contrato_Prestamo_${prestamo?.id || ''}.pdf`);
 }
 
-export async function exportReciboPagoFormatoPDF({ pago, cliente, prestamo, metodo = 'Efectivo' }) {
+export async function exportReciboPagoFormatoPDF({ pago, cliente, prestamo, receptor, metodo = 'Efectivo' }) {
   const jsPDF = await getJsPdf();
   const doc = new jsPDF('p','mm','a4');
 
@@ -380,12 +380,34 @@ export async function exportReciboPagoFormatoPDF({ pago, cliente, prestamo, meto
   const drawLine = () => { doc.setDrawColor(200); doc.line(x, y, x+w, y); y += 8; };
 
   doc.setFont(undefined,'bold'); doc.text('Recibí de:', x, y); doc.setFont(undefined,'normal');
-  doc.text(`${cliente?.nombre || ''}`, x+30, y); drawLine();
+  doc.text(`${cliente?.nombre || ''}`, x+30, y);
+  drawLine();
+  // DNI del pagador (cliente)
+  doc.setFont(undefined,'bold'); doc.text('DNI:', x, y); doc.setFont(undefined,'normal');
+  doc.text(`${cliente?.dni || '-'}`, x+30, y); drawLine();
   doc.setFont(undefined,'bold'); doc.text('Cantidad:', x, y); doc.setFont(undefined,'normal');
   const enLetras = numeroALetrasSimple(pago?.monto || 0);
   doc.text(`${enLetras} (${moneda(pago?.monto)})`, x+30, y); drawLine();
   doc.setFont(undefined,'bold'); doc.text('Concepto:', x, y); doc.setFont(undefined,'normal');
-  doc.text(pago?.notas || `Pago sobre préstamo #${prestamo?.id || ''}`, x+30, y); drawLine();
+  const cuotaActual = prestamo?.cuotas_pagadas || 0;
+  const cuotasTotales = prestamo?.cuotas_totales || 0;
+  let concepto = 'Pago de Cuota';
+  if (pago?.tipo_pago === 'total') {
+    concepto = 'Pago Total del Préstamo';
+  } else if (pago?.tipo_pago === 'parcial') {
+    concepto = 'Pago Parcial';
+  }
+  if (pago?.notas) {
+    const nota = String(pago.notas).trim();
+    // Evitar repetir si la nota contiene ya el concepto base
+    if (nota && !nota.toLowerCase().includes(concepto.toLowerCase())) {
+      concepto += ` - ${nota}`;
+    }
+  }
+  doc.text(concepto, x+30, y); drawLine();
+  // Línea adicional mostrando el progreso de cuotas
+  doc.setFont(undefined,'bold'); doc.text('Cuota:', x, y); doc.setFont(undefined,'normal');
+  doc.text(`${cuotaActual}/${cuotasTotales}`, x+30, y); drawLine();
 
   doc.text('Forma de pago:', x + 95, 35);
   const yfp = 42;
@@ -394,14 +416,14 @@ export async function exportReciboPagoFormatoPDF({ pago, cliente, prestamo, meto
   check(145, yfp+4, metodo?.toLowerCase() === 'cheque'); doc.text('Cheque', 151, yfp+8);
   check(145, yfp+12, metodo?.toLowerCase() === 'transferencia'); doc.text('Transferencia', 151, yfp+16);
 
-  // Firma y datos de quien recibe
+  // Datos de quien recibe (sin firma)
   y += 20;
-  doc.line(x, y+20, x+80, y+20);
-  doc.text('Recibido por (firma)', x+40, y+26, { align:'center' });
-  y += 35;
-  doc.text(`[Nombre]`, x, y);
-  doc.text(`[Domicilio]`, x, y+6);
-  doc.text(`[Teléfono]`, x, y+12);
+  doc.setFont(undefined,'bold');
+  doc.text('Recibido por:', x, y); doc.setFont(undefined,'normal');
+  doc.text(`${receptor?.nombre || ''}`, x+35, y);
+  y += 8;
+  doc.setFont(undefined,'bold'); doc.text('DNI:', x, y); doc.setFont(undefined,'normal');
+  doc.text(`${receptor?.dni || '-'}`, x+35, y);
 
   doc.save(`Recibo_Pago_${pago?.id || ''}.pdf`);
 }

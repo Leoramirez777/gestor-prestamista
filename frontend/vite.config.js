@@ -13,6 +13,12 @@ export default defineConfig({
     historyApiFallback: {
       index: '/index.html',
     },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     rollupOptions: {

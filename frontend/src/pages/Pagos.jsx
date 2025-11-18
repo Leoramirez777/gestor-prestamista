@@ -4,7 +4,8 @@ import { fetchPagos, createPago, previewPagoCobrador } from '../api/pagos';
 import { fetchPrestamos } from '../api/prestamos';
 import { fetchClientes } from '../api/clientes';
 import { fetchEmpleados } from '../api/empleados';
-import { exportPagoPDF, exportReciboPagoFormatoPDF } from '../utils/pdfExport';
+import { exportReciboPagoFormatoPDF } from '../utils/pdfExport';
+import { getCurrentUser } from '../api/auth';
 import '../styles/Pagos.css';
 
 export default function Pagos() {
@@ -438,29 +439,59 @@ export default function Pagos() {
                         <td>
                           <div className="btn-group">
                             <button
-                              className="btn btn-sm btn-outline-primary"
-                              title="Recibo detallado"
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch(`/api/pagos/${pago.id}/cobrador`);
-                                  const cobrador = res.ok ? await res.json() : null;
-                                  await exportPagoPDF({ pago, cliente, prestamo, cobrador });
-                                } catch (e) {
-                                  console.error('Error exportando PDF del pago', e);
-                                  alert('No se pudo generar el PDF del pago');
-                                }
-                              }}
-                            >
-                              PDF
-                            </button>
-                            <button
                               className="btn btn-sm btn-outline-success"
                               title="Recibo clásico (formato)"
                               onClick={async () => {
                                 try {
-                                  const res = await fetch(`/api/pagos/${pago.id}/cobrador`);
-                                  const cobrador = res.ok ? await res.json() : null;
-                                  await exportReciboPagoFormatoPDF({ pago, cliente, prestamo, cobrador, metodo: pago.metodo_pago || 'efectivo' });
+                                  // Determinar receptor: primero cobrador (si existe), luego admin
+                                  let receptor = null;
+
+                                  // Intentar obtener comisión del cobrador (si hay registro se asume que él recibió el pago)
+                                  try {
+                                    const res = await fetch(`/api/pagos/${pago.id}/cobrador`);
+                                    console.log('Response status:', res.status);
+                                    if (res.ok) {
+                                      const text = await res.text();
+                                      console.log('Response text:', text.substring(0, 200));
+                                      const registro = JSON.parse(text);
+                                      console.log('Registro cobrador:', registro);
+                                      if (registro?.empleado_id) {
+                                        const empRes = await fetch(`/api/empleados/${registro.empleado_id}`);
+                                        if (empRes.ok) {
+                                          const empText = await empRes.text();
+                                          console.log('Employee response text:', empText.substring(0, 200));
+                                          const emp = JSON.parse(empText);
+                                          console.log('Empleado completo:', emp);
+                                          receptor = { nombre: emp.nombre, dni: emp.dni || '' };
+                                        } else {
+                                          console.log('Usando nombre del registro:', registro.empleado_nombre);
+                                          receptor = { nombre: registro.empleado_nombre, dni: '' };
+                                        }
+                                      } else if (registro?.empleado_nombre) {
+                                        console.log('Solo nombre en registro:', registro.empleado_nombre);
+                                        receptor = { nombre: registro.empleado_nombre, dni: '' };
+                                      }
+                                    } else {
+                                      console.log('No hay registro de cobrador para pago', pago.id);
+                                    }
+                                  } catch (err) {
+                                    console.log('Error buscando cobrador:', err);
+                                    console.log('Error completo:', err.message, err.stack);
+                                  }
+
+                                  // Fallback a usuario autenticado (admin) solo si no se obtuvo cobrador
+                                  if (!receptor) {
+                                    console.log('Usando fallback admin');
+                                    const admin = await getCurrentUser().catch(() => null);
+                                    if (admin) {
+                                      receptor = { nombre: admin.nombre_completo || admin.username, dni: admin.dni || '' };
+                                    } else {
+                                      receptor = { nombre: '', dni: '' };
+                                    }
+                                  }
+
+                                  console.log('Receptor final:', receptor);
+                                  await exportReciboPagoFormatoPDF({ pago, cliente, prestamo, receptor, metodo: pago.metodo_pago || 'efectivo' });
                                 } catch (e) {
                                   console.error('Error exportando Recibo formato', e);
                                   alert('No se pudo generar el Recibo en PDF');
