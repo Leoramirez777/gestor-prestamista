@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchPrestamos, refinanciarPrestamo, fetchAmortizacion } from '../api/prestamos';
+import { fetchPrestamos, refinanciarPrestamo, fetchAmortizacion, fetchPrestamoVendedor } from '../api/prestamos';
 import { fetchCliente } from '../api/clientes';
 import { fetchPagosByPrestamo } from '../api/pagos';
 import '../styles/DetallePrestamo.css';
@@ -12,6 +12,7 @@ export default function DetallePrestamo() {
   const [cliente, setCliente] = useState(null);
   const [pagos, setPagos] = useState([]);
   const [amortizacion, setAmortizacion] = useState([]);
+  const [vendedor, setVendedor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showRefi, setShowRefi] = useState(false);
@@ -50,6 +51,14 @@ export default function DetallePrestamo() {
         setCliente(clienteData);
         setPagos(pagosData || []);
         setAmortizacion(amortizacionData || []);
+
+        // Cargar comisión de vendedor (si existe)
+        try {
+          const vend = await fetchPrestamoVendedor(id);
+          if (vend) setVendedor(vend);
+        } catch (e) {
+          // 404 u otro error: no hay comisión de vendedor, continuar
+        }
       } catch (err) {
         console.error('Error al cargar datos:', err);
         setError('Error al cargar los datos del préstamo');
@@ -112,7 +121,7 @@ export default function DetallePrestamo() {
       case 'refinanciado':
         return { texto: 'Refinanciado', color: 'text-info' };
       case 'activo':
-        return { texto: 'Activo', color: 'text-warning' };
+        return { texto: 'Activo', color: 'text-dark' };
       case 'vencido':
         return { texto: 'Vencido', color: 'text-danger' };
       default:
@@ -121,7 +130,7 @@ export default function DetallePrestamo() {
         const vencimiento = new Date(prestamo.fecha_vencimiento);
         if (prestamo.saldo_pendiente <= 0) return { texto: 'Pagado', color: 'text-success' };
         if (vencimiento < hoy) return { texto: 'Vencido', color: 'text-danger' };
-        return { texto: 'Activo', color: 'text-warning' };
+        return { texto: 'Activo', color: 'text-dark' };
     }
   };
 
@@ -211,49 +220,49 @@ export default function DetallePrestamo() {
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Fecha:</label>
-            <p className="info-value text-warning">{formatDate(prestamo.fecha_inicio)}</p>
+            <p className="info-value">{formatDate(prestamo.fecha_inicio)}</p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Vencimiento:</label>
-            <p className="info-value text-warning">{formatDate(prestamo.fecha_vencimiento)}</p>
+            <p className="info-value">{formatDate(prestamo.fecha_vencimiento)}</p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Monto:</label>
-            <p className="info-value text-warning">{formatCurrency(prestamo.monto)}</p>
+            <p className="info-value">{formatCurrency(prestamo.monto)}</p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Tasa de Interés:</label>
-            <p className="info-value text-warning">{prestamo.tasa_interes}%</p>
+            <p className="info-value">{prestamo.tasa_interes}%</p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Intereses:</label>
-            <p className="info-value text-warning">{formatCurrency(calcularIntereses())}</p>
+            <p className="info-value">{formatCurrency(calcularIntereses())}</p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Total:</label>
-            <p className="info-value text-warning">{formatCurrency(prestamo.monto_total)}</p>
+            <p className="info-value">{formatCurrency(prestamo.monto_total)}</p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Frecuencia de Pago:</label>
-            <p className="info-value text-warning text-capitalize">{prestamo.frecuencia_pago || 'Semanal'}</p>
+            <p className="info-value text-capitalize">{prestamo.frecuencia_pago || 'Semanal'}</p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Cantidad de Cuotas:</label>
-            <p className="info-value text-warning">
+            <p className="info-value">
               {prestamo.cuotas_totales && prestamo.cuotas_totales > 0
                 ? prestamo.cuotas_totales
                 : (prestamo.frecuencia_pago === 'semanal'
@@ -265,19 +274,19 @@ export default function DetallePrestamo() {
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Valor de Cuota:</label>
-            <p className="info-value text-warning">{formatCurrency(prestamo.valor_cuota && prestamo.valor_cuota > 0 ? prestamo.valor_cuota : calcularValorCuota())}</p>
+            <p className="info-value">{formatCurrency(prestamo.valor_cuota && prestamo.valor_cuota > 0 ? prestamo.valor_cuota : calcularValorCuota())}</p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Cuotas Pagadas:</label>
-            <p className="info-value text-warning">{calcularCuotasPagadas()}</p>
+            <p className="info-value">{calcularCuotasPagadas()}</p>
           </div>
         </div>
         <div className="col-md-6">
           <div className="info-card">
             <label className="info-label">Saldo:</label>
-            <p className="info-value text-warning">{formatCurrency(prestamo.saldo_pendiente)}</p>
+            <p className="info-value">{formatCurrency(prestamo.saldo_pendiente)}</p>
           </div>
         </div>
         <div className="col-md-6">
@@ -285,6 +294,56 @@ export default function DetallePrestamo() {
             <label className="info-label">Estatus:</label>
             <p className={`info-value ${estadoInfo.color}`}>{estadoInfo.texto}</p>
           </div>
+        </div>
+      </div>
+
+      {/* Comisión del Vendedor */}
+      <div className="card shadow-sm mb-4">
+        <div className="card-header bg-success text-white d-flex justify-content-between align-items-center">
+          <h5 className="mb-0">Comisión del Vendedor</h5>
+          {vendedor && (
+            <span className="badge bg-light text-success">
+              {vendedor.porcentaje}% sobre {vendedor.base_tipo === 'interes' ? 'interés' : 'total'}
+            </span>
+          )}
+        </div>
+        <div className="card-body">
+          {!vendedor ? (
+            <div className="text-muted">No hay comisión de vendedor registrada para este préstamo.</div>
+          ) : (
+            <div className="row g-3">
+              <div className="col-md-4">
+                <div className="info-card">
+                  <label className="info-label">Vendedor</label>
+                  <p className="info-value">{vendedor.empleado_nombre || `ID ${vendedor.empleado_id}`}</p>
+                </div>
+              </div>
+              <div className="col-md-4">
+                <div className="info-card">
+                  <label className="info-label">Base</label>
+                  <p className="info-value text-capitalize">{vendedor.base_tipo}</p>
+                </div>
+              </div>
+              <div className="col-md-4">
+                <div className="info-card">
+                  <label className="info-label">Porcentaje</label>
+                  <p className="info-value">{vendedor.porcentaje}%</p>
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="info-card">
+                  <label className="info-label">Monto Base</label>
+                  <p className="info-value">{formatCurrency(vendedor.monto_base)}</p>
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="info-card">
+                  <label className="info-label">Comisión</label>
+                  <p className="info-value text-success fw-bold">{formatCurrency(vendedor.monto_comision)}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -326,7 +385,7 @@ export default function DetallePrestamo() {
                     <td>{formatCurrency(fila.monto)}</td>
                     <td className={
                       fila.estado === 'Pagado' ? 'text-success' :
-                      fila.estado === 'Vencido' ? 'text-danger' : 'text-warning'
+                      fila.estado === 'Vencido' ? 'text-danger' : 'text-dark'
                     }>
                       {fila.estado}
                     </td>

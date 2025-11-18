@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createPrestamo } from '../api/prestamos';
+import { createPrestamo, previewVendedorComision } from '../api/prestamos';
+import { fetchEmpleados } from '../api/empleados';
 import { fetchClientes } from '../api/clientes';
 import '../styles/NuevosPrestamos.css';
 
@@ -14,6 +15,14 @@ export default function NuevosPrestamos() {
     plazo_dias: '',
     frecuencia_pago: 'semanal'
   });
+  // Vendedor
+  const [vendedores, setVendedores] = useState([]);
+  const [vendedorHabilitado, setVendedorHabilitado] = useState(false);
+  const [vendedorId, setVendedorId] = useState('');
+  const [vendedorBase, setVendedorBase] = useState('total'); // total | interes
+  const [vendedorPorcentaje, setVendedorPorcentaje] = useState('');
+  const [previewVendedor, setPreviewVendedor] = useState(null);
+  const [previewError, setPreviewError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingClientes, setLoadingClientes] = useState(true);
   const [mensaje, setMensaje] = useState({ tipo: '', texto: '' });
@@ -35,7 +44,42 @@ export default function NuevosPrestamos() {
     };
     
     loadClientes();
+    // cargar vendedores
+    const loadVendedores = async () => {
+      try {
+        const data = await fetchEmpleados({ puesto: 'Vendedor' });
+        setVendedores(data || []);
+      } catch (e) {
+        console.error('Error cargando vendedores', e);
+      }
+    };
+    loadVendedores();
   }, []);
+
+  // Preview comisión vendedor
+  useEffect(() => {
+    const runPreview = async () => {
+      setPreviewError(null);
+      setPreviewVendedor(null);
+      if (!vendedorHabilitado) return;
+      const monto = parseFloat(formData.monto);
+      const tasa = parseFloat(formData.tasa_interes);
+      const porcentaje = parseFloat(vendedorPorcentaje);
+      if (!monto || !tasa || !porcentaje) return;
+      try {
+        const data = await previewVendedorComision({
+          monto,
+          tasa_interes: tasa,
+          porcentaje,
+          base: vendedorBase
+        });
+        setPreviewVendedor(data);
+      } catch (e) {
+        setPreviewError(e.message || 'Error en preview');
+      }
+    };
+    runPreview();
+  }, [formData.monto, formData.tasa_interes, vendedorPorcentaje, vendedorBase, vendedorHabilitado]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -95,6 +139,14 @@ export default function NuevosPrestamos() {
         frecuencia_pago: formData.frecuencia_pago
       };
 
+      if (vendedorHabilitado && vendedorId && vendedorPorcentaje) {
+        const vendedorSeleccionado = vendedores.find(v => v.id === parseInt(vendedorId));
+        prestamoData.vendedor_id = parseInt(vendedorId);
+        prestamoData.vendedor_porcentaje = parseFloat(vendedorPorcentaje);
+        prestamoData.vendedor_base = vendedorBase;
+        prestamoData.vendedor_nombre = vendedorSeleccionado ? vendedorSeleccionado.nombre : undefined;
+      }
+
       console.log('Enviando datos de préstamo:', prestamoData);
       
       await createPrestamo(prestamoData);
@@ -112,6 +164,10 @@ export default function NuevosPrestamos() {
         plazo_dias: '',
         frecuencia_pago: 'semanal'
       });
+      setVendedorHabilitado(false);
+      setVendedorId('');
+      setVendedorPorcentaje('');
+      setPreviewVendedor(null);
       
     } catch (error) {
       console.error('Error al crear préstamo:', error);
@@ -284,6 +340,98 @@ export default function NuevosPrestamos() {
                       <span className="input-group-text">%</span>
                     </div>
                   </div>
+                </div>
+
+                {/* Vendedor */}
+                <div className="border rounded p-3 mb-3">
+                  <div className="form-check form-switch mb-2">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="vendedorSwitch"
+                      checked={vendedorHabilitado}
+                      onChange={(e) => setVendedorHabilitado(e.target.checked)}
+                    />
+                    <label className="form-check-label" htmlFor="vendedorSwitch">Vendedor</label>
+                  </div>
+                  {vendedorHabilitado && (
+                    <>
+                      <div className="row">
+                        <div className="col-md-6 mb-3">
+                          <label className="form-label">Seleccionar vendedor</label>
+                          <select
+                            className="form-select"
+                            value={vendedorId}
+                            onChange={(e) => setVendedorId(e.target.value)}
+                          >
+                            <option value="">-- Seleccionar --</option>
+                            {vendedores.map(v => (
+                              <option key={v.id} value={v.id}>{v.nombre}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-md-6 mb-3">
+                          <label className="form-label">Base del cálculo</label>
+                          <div className="d-flex gap-3">
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="radio"
+                                name="baseVendedor"
+                                id="baseTotal"
+                                checked={vendedorBase === 'total'}
+                                onChange={() => setVendedorBase('total')}
+                              />
+                              <label className="form-check-label" htmlFor="baseTotal">Total (monto + interés)</label>
+                            </div>
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="radio"
+                                name="baseVendedor"
+                                id="baseInteres"
+                                checked={vendedorBase === 'interes'}
+                                onChange={() => setVendedorBase('interes')}
+                              />
+                              <label className="form-check-label" htmlFor="baseInteres">Sólo interés</label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="row">
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">Porcentaje</label>
+                          <div className="input-group">
+                            <input
+                              type="number"
+                              className="form-control"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={vendedorPorcentaje}
+                              onChange={(e) => setVendedorPorcentaje(e.target.value)}
+                              placeholder="5"
+                            />
+                            <span className="input-group-text">%</span>
+                          </div>
+                        </div>
+                        <div className="col-md-8 d-flex align-items-end">
+                          {previewVendedor && (
+                            <div className="alert alert-secondary w-100 mb-0 py-2">
+                              <small>
+                                Base: ${previewVendedor.monto_base.toFixed(2)} – Comisión: <strong>${previewVendedor.monto_comision.toFixed(2)}</strong>
+                              </small>
+                            </div>
+                          )}
+                          {previewError && (
+                            <div className="alert alert-danger w-100 mb-0 py-2">
+                              <small>{previewError}</small>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Resumen del préstamo */}

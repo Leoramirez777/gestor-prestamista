@@ -35,3 +35,12 @@ export async function fetchComisionesEmpleado(empleadoId) {
     handleApiError(err);
   }
 }
+
+export async function fetchComisionesVendedorEmpleado(empleadoId) {
+  try {
+    const { data } = await api.get(`/api/empleados/${empleadoId}/comisiones-vendedor`);
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

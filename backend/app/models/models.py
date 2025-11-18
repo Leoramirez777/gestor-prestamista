@@ -97,3 +97,18 @@ class PagoCobrador(Base):
     monto_comision = Column(Float, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+
+# === COMISION VENDEDOR POR PRÉSTAMO ===
+class PrestamoVendedor(Base):
+    __tablename__ = "prestamos_vendedores"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prestamo_id = Column(Integer, ForeignKey("prestamos.id"), nullable=False)
+    empleado_id = Column(Integer, ForeignKey("empleados.id"), nullable=True)
+    empleado_nombre = Column(String(100))  # respaldo del nombre
+    porcentaje = Column(Float, nullable=False)  # % sobre base
+    base_tipo = Column(String(20), default="total")  # total | interes
+    monto_base = Column(Float, nullable=False)
+    monto_comision = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+

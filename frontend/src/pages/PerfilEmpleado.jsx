@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { fetchEmpleado, fetchComisionesEmpleado } from "../api/empleados";
+import { fetchEmpleado, fetchComisionesEmpleado, fetchComisionesVendedorEmpleado } from "../api/empleados";
 import "../styles/PerfilEmpleado.css";
 
 export default function PerfilEmpleado() {
@@ -15,12 +15,33 @@ export default function PerfilEmpleado() {
     const load = async () => {
       try {
         setLoading(true);
-        const [dataEmpleado, dataComisiones] = await Promise.all([
+        const [dataEmpleado, cobrador, vendedor] = await Promise.all([
           fetchEmpleado(id),
-          fetchComisionesEmpleado(id)
+          fetchComisionesEmpleado(id),
+          fetchComisionesVendedorEmpleado(id)
         ]);
         setEmpleado(dataEmpleado);
-        setComisiones(dataComisiones || []);
+        const normalizadas = [
+          ...(cobrador || []).map(c => ({
+            id: `c-${c.id}`,
+            tipo: 'cobrador',
+            ref_label: 'Pago',
+            ref_id: c.pago_id,
+            porcentaje: c.porcentaje,
+            monto_comision: c.monto_comision,
+            created_at: c.created_at,
+          })),
+          ...(vendedor || []).map(v => ({
+            id: `v-${v.id}`,
+            tipo: 'vendedor',
+            ref_label: 'Préstamo',
+            ref_id: v.prestamo_id,
+            porcentaje: v.porcentaje,
+            monto_comision: v.monto_comision,
+            created_at: v.created_at,
+          }))
+        ].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+        setComisiones(normalizadas);
       } catch (e) {
         setError(e.message || "No se pudo cargar el empleado");
       } finally {
@@ -72,6 +93,9 @@ export default function PerfilEmpleado() {
       <div className="card shadow-sm mb-4 empleado-card">
         <div className="card-header empleado-card-header d-flex justify-content-between align-items-center">
           <h4 className="mb-0">Datos Personales</h4>
+          <button className="btn btn-light btn-sm" onClick={() => alert('Función de edición en desarrollo')}>
+            Editar
+          </button>
         </div>
         <div className="card-body">
           <div className="row">
@@ -147,19 +171,21 @@ export default function PerfilEmpleado() {
                 <thead className="table-light">
                   <tr>
                     <th>Fecha</th>
-                    <th>Pago ID</th>
+                    <th>Tipo</th>
+                    <th>Referencia</th>
                     <th className="text-center">Porcentaje</th>
                     <th className="text-end">Comisión</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {comisiones.map((comision) => (
-                    <tr key={comision.id}>
-                      <td>{formatDate(comision.created_at)}</td>
-                      <td>#{comision.pago_id}</td>
-                      <td className="text-center">{comision.porcentaje}%</td>
+                  {comisiones.map((c) => (
+                    <tr key={c.id}>
+                      <td>{formatDate(c.created_at)}</td>
+                      <td className="text-capitalize">{c.tipo}</td>
+                      <td>{c.ref_label} #{c.ref_id}</td>
+                      <td className="text-center">{c.porcentaje}%</td>
                       <td className="text-end fw-semibold empleado-comision-amount">
-                        ${parseFloat(comision.monto_comision || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${parseFloat(c.monto_comision || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))}

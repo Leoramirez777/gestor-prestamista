@@ -37,3 +37,19 @@
 .empleado-comision-amount {
   color: #6f42c1;
 }
+
+/* Remove hover effects to keep cards fixed */
+.empleado-card {
+  transition: none;
+  transform: none !important;
+}
+
+.empleado-card:hover {
+  transform: none !important;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+}
+
+/* Remove table row hover transform */
+.table-hover tbody tr:hover {
+  transform: none !important;
+}

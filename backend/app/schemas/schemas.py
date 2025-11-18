@@ -41,7 +41,11 @@ class PrestamoBase(BaseModel):
     frecuencia_pago: Optional[str] = "semanal"  # semanal o mensual
 
 class PrestamoCreate(PrestamoBase):
-    pass
+    # Campos para comisión de vendedor (opcionales)
+    vendedor_id: Optional[int] = None
+    vendedor_nombre: Optional[str] = None
+    vendedor_porcentaje: Optional[float] = None  # % sobre base
+    vendedor_base: Optional[str] = "total"  # total | interes
 
 class PrestamoUpdate(BaseModel):
     monto: Optional[float] = None
@@ -60,6 +64,21 @@ class Prestamo(PrestamoBase):
     saldo_cuota: float
     created_at: datetime
     
+    class Config:
+        from_attributes = True
+
+
+class PrestamoVendedor(BaseModel):
+    id: int
+    prestamo_id: int
+    empleado_id: Optional[int]
+    empleado_nombre: Optional[str]
+    porcentaje: float
+    base_tipo: str
+    monto_base: float
+    monto_comision: float
+    created_at: datetime
+
     class Config:
         from_attributes = True
 

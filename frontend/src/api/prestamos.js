@@ -36,6 +36,26 @@ export async function createPrestamo(payload) {
   }
 }
 
+export async function previewVendedorComision({ monto, tasa_interes, porcentaje, base }) {
+  try {
+    const { data } = await api.get('/api/prestamos/preview-vendedor', {
+      params: { monto, tasa_interes, porcentaje, base }
+    });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function fetchPrestamoVendedor(prestamoId) {
+  try {
+    const { data } = await api.get(`/api/prestamos/${prestamoId}/vendedor`);
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
 export async function updatePrestamo(id, payload) {
   try {
     const { data } = await api.put(`/api/prestamos/${id}`, payload);

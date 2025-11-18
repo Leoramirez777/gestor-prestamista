@@ -29,6 +29,7 @@
   font-size: 1.3rem;
   font-weight: 700;
   margin: 0;
+  color: #000 !important;
 }
 
 .table-hover tbody tr:hover {

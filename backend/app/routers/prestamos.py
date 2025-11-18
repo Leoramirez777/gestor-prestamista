@@ -3,11 +3,27 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import timedelta, date
 from app.database.database import get_db
-from app.models.models import Prestamo, Cliente
-from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate, Cuota
+from app.models.models import Prestamo, Cliente, Empleado, PrestamoVendedor
+from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate, Cuota, PrestamoVendedor as PrestamoVendedorSchema
 from app.amortization_service import generar_amortizacion
 
 router = APIRouter()
+
+
+@router.get("/preview-vendedor")
+def preview_vendedor(monto: float, tasa_interes: float, porcentaje: float, base: str = "total"):
+    """Calcular comisión de vendedor sin persistir.
+    base=total -> sobre monto + interés
+    base=interes -> solo interés generado
+    """
+    if porcentaje < 0 or porcentaje > 100:
+        raise HTTPException(status_code=400, detail="Porcentaje inválido (0-100)")
+    monto_interes = monto * (tasa_interes / 100.0)
+    if base not in ["total", "interes"]:
+        raise HTTPException(status_code=400, detail="Base inválida (total|interes)")
+    monto_base = (monto + monto_interes) if base == "total" else monto_interes
+    monto_comision = monto_base * (porcentaje / 100.0)
+    return {"monto_base": round(monto_base, 2), "monto_comision": round(monto_comision, 2)}
 
 @router.get("/", response_model=List[PrestamoSchema])
 def get_prestamos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -70,6 +86,31 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
     db.add(db_prestamo)
     db.commit()
     db.refresh(db_prestamo)
+
+    # Comisión vendedor (opcional)
+    if prestamo.vendedor_porcentaje and prestamo.vendedor_porcentaje > 0 and prestamo.vendedor_id:
+        if prestamo.vendedor_porcentaje < 0 or prestamo.vendedor_porcentaje > 100:
+            raise HTTPException(status_code=400, detail="Porcentaje vendedor inválido (0-100)")
+        base_tipo = (prestamo.vendedor_base or "total").lower()
+        if base_tipo not in ["total", "interes"]:
+            raise HTTPException(status_code=400, detail="Base vendedor inválida (total|interes)")
+        empleado = db.query(Empleado).filter(Empleado.id == prestamo.vendedor_id).first()
+        if not empleado:
+            raise HTTPException(status_code=404, detail="Vendedor no encontrado")
+        monto_interes = prestamo.monto * (prestamo.tasa_interes / 100)
+        monto_base = (prestamo.monto + monto_interes) if base_tipo == "total" else monto_interes
+        monto_comision = monto_base * (prestamo.vendedor_porcentaje / 100.0)
+        registro = PrestamoVendedor(
+            prestamo_id=db_prestamo.id,
+            empleado_id=empleado.id,
+            empleado_nombre=empleado.nombre,
+            porcentaje=prestamo.vendedor_porcentaje,
+            base_tipo=base_tipo,
+            monto_base=monto_base,
+            monto_comision=monto_comision,
+        )
+        db.add(registro)
+        db.commit()
     return db_prestamo
 
 @router.put("/{prestamo_id}", response_model=PrestamoSchema)
@@ -163,3 +204,11 @@ def get_amortizacion(prestamo_id: int, db: Session = Depends(get_db)):
     
     cuotas = generar_amortizacion(prestamo, db)
     return cuotas
+
+
+@router.get("/{prestamo_id}/vendedor", response_model=PrestamoVendedorSchema)
+def get_comision_vendedor(prestamo_id: int, db: Session = Depends(get_db)):
+    registro = db.query(PrestamoVendedor).filter(PrestamoVendedor.prestamo_id == prestamo_id).first()
+    if not registro:
+        raise HTTPException(status_code=404, detail="Comisión de vendedor no encontrada")
+    return registro
