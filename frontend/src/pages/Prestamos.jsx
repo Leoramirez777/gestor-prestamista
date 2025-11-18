@@ -119,7 +119,12 @@ export default function Prestamos() {
       {/* Encabezado con botón de regreso */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h1 className="fw-bold text-dark m-0">Gestión de Préstamos</h1>
-        <button className="btn btn-outline-secondary" onClick={() => navigate('/')}>← Volver al Menú</button>
+        <div className="d-flex gap-2">
+          <button className="btn btn-success" onClick={() => navigate('/nuevos-prestamos')}>
+            <i className="fas fa-plus me-2"></i>Nuevo Préstamo
+          </button>
+          <button className="btn btn-outline-secondary" onClick={() => navigate('/')}>← Volver al Menú</button>
+        </div>
       </div>
 
       <div className="card mb-4 shadow-sm border-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '16px' }}>
