@@ -84,22 +84,6 @@ export async function exportPrestamoPDF(prestamo, cliente, pagos = [], amortizac
   
   yPos += 10;
   
-  // Comisión del vendedor (si existe)
-  if (vendedor) {
-    doc.setFont(undefined, 'bold');
-    doc.text('Comisión del Vendedor', 14, yPos);
-    doc.setFont(undefined, 'normal');
-    yPos += 8;
-    doc.text(`Vendedor: ${vendedor.empleado_nombre}`, leftCol, yPos);
-    yPos += 6;
-    doc.text(`Base: ${vendedor.base_tipo === 'interes' ? 'Interés' : 'Total'}`, leftCol, yPos);
-    doc.text(`Porcentaje: ${vendedor.porcentaje}%`, rightCol, yPos);
-    yPos += 6;
-    doc.text(`Monto Base: ${formatCurrency(vendedor.monto_base)}`, leftCol, yPos);
-    doc.text(`Comisión: ${formatCurrency(vendedor.monto_comision)}`, rightCol, yPos);
-    yPos += 10;
-  }
-  
   // Tabla de amortización
   if (amortizacion && amortizacion.length > 0) {
     doc.autoTable({
