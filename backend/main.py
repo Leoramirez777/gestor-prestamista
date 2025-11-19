@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import clientes, prestamos, pagos, auth, metrics, empleados, caja
+from app.routers import clientes, prestamos, pagos, auth, metrics, empleados, caja, comisiones
 from app.database.database import engine, SessionLocal
 from app.models import models
 from app.caja_service import backfill_caja_movimientos
@@ -45,6 +45,7 @@ app.include_router(pagos.router, prefix="/api/pagos", tags=["Pagos"])
 app.include_router(metrics.router, prefix="/api/metrics", tags=["Métricas"])
 app.include_router(empleados.router)
 app.include_router(caja.router)
+app.include_router(comisiones.router, prefix="/api/comisiones", tags=["Comisiones"])
 
 @app.get("/")
 def read_root():
