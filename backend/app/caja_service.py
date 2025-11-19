@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.models import MovimientoCaja, Prestamo, Pago, CajaCierre
+from app.models.models import MovimientoCaja, Prestamo, Pago, CajaCierre, PagoVendedor, PagoCobrador
 
 
 def backfill_caja_movimientos(db: Session):
@@ -133,7 +133,8 @@ def listar_movimientos_por_fecha(db: Session, fecha: date):
 
 
 def get_cierre_caja(db: Session, fecha: date):
-    """Obtiene el cierre del día con saldo_inicial, ingresos, egresos, saldo_esperado, saldo_final, cerrado."""
+    """Obtiene el cierre del día con saldo_inicial, ingresos, egresos, saldo_esperado, saldo_final, cerrado.
+    Incluye cálculo de comisiones y flujo neto real."""
     cierre = get_or_create_cierre(db, fecha)
     actualizar_totales_cierre(db, fecha)
     
@@ -149,6 +150,27 @@ def get_cierre_caja(db: Session, fecha: date):
             detalle_egresos.setdefault(m.categoria or "otros", 0.0)
             detalle_egresos[m.categoria or "otros"] += m.monto
 
+    # Calcular comisiones del día
+    comisiones_vendedor = db.query(
+        func.sum(PagoVendedor.monto_comision)
+    ).join(Pago, PagoVendedor.pago_id == Pago.id).filter(
+        Pago.fecha_pago == fecha
+    ).scalar() or 0.0
+    
+    comisiones_cobrador = db.query(
+        func.sum(PagoCobrador.monto_comision)
+    ).join(Pago, PagoCobrador.pago_id == Pago.id).filter(
+        Pago.fecha_pago == fecha
+    ).scalar() or 0.0
+    
+    total_comisiones = comisiones_vendedor + comisiones_cobrador
+    
+    # Ingresos netos (descontando comisiones que se pagarán)
+    ingresos_netos = cierre.ingresos - total_comisiones
+    
+    # Flujo neto del día
+    flujo_neto = ingresos_netos - cierre.egresos
+
     return {
         "fecha": fecha.isoformat(),
         "saldo_inicial": round(cierre.saldo_inicial, 2),
@@ -160,4 +182,16 @@ def get_cierre_caja(db: Session, fecha: date):
         "cerrado": cierre.cerrado,
         "detalle_ingresos": {k: round(v, 2) for k, v in detalle_ingresos.items()},
         "detalle_egresos": {k: round(v, 2) for k, v in detalle_egresos.items()},
+        "comisiones": {
+            "vendedor": round(comisiones_vendedor, 2),
+            "cobrador": round(comisiones_cobrador, 2),
+            "total": round(total_comisiones, 2)
+        },
+        "flujo_neto": {
+            "ingresos_brutos": round(cierre.ingresos, 2),
+            "comisiones_a_pagar": round(total_comisiones, 2),
+            "ingresos_netos": round(ingresos_netos, 2),
+            "egresos": round(cierre.egresos, 2),
+            "flujo_del_dia": round(flujo_neto, 2)
+        }
     }

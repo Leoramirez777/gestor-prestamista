@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.models import Cliente, Prestamo, Pago
+from app.models.models import Cliente, Prestamo, Pago, PagoVendedor, PagoCobrador
 from app.amortization_service import generar_amortizacion
 
 
@@ -37,6 +37,14 @@ def get_summary_metrics(db: Session) -> dict:
     
     # Calcular tasa de activación (clientes con préstamos activos / total clientes)
     activation_rate = (clientes_activos / total_clientes) if total_clientes > 0 else 0.0
+    
+    # Calcular comisiones (totales históricas)
+    total_comisiones_vendedor = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).scalar() or 0.0
+    total_comisiones_cobrador = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).scalar() or 0.0
+    total_comisiones = total_comisiones_vendedor + total_comisiones_cobrador
+    
+    # Ingresos netos (recaudado menos comisiones pagadas)
+    ingresos_netos = monto_total_recaudado - total_comisiones
 
     return {
         'timestamp': today.isoformat(),
@@ -54,7 +62,13 @@ def get_summary_metrics(db: Session) -> dict:
         'average_loan_size': round(average_loan_size, 2),
         'ticket_promedio_pago': round(ticket_promedio_pago, 2),
         'clientes_activos': clientes_activos,
-        'activation_rate': round(activation_rate, 4)
+        'activation_rate': round(activation_rate, 4),
+        'comisiones': {
+            'vendedor': round(total_comisiones_vendedor, 2),
+            'cobrador': round(total_comisiones_cobrador, 2),
+            'total': round(total_comisiones, 2)
+        },
+        'ingresos_netos': round(ingresos_netos, 2)
     }
 
 
