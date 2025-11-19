@@ -8,6 +8,8 @@ import {
 } from '../api/comisiones';
 import { fetchEmpleados } from '../api/empleados';
 import '../styles/Comisiones.css';
+import formatCurrency from '../utils/formatCurrency';
+import useSettingsStore from '../stores/useSettingsStore';
 
 function Comisiones() {
   const [activeTab, setActiveTab] = useState('ranking');
@@ -83,13 +85,8 @@ function Comisiones() {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-      minimumFractionDigits: 0
-    }).format(amount || 0);
-  };
+  // subscribe to moneda so this component re-renders when currency changes
+  const moneda = useSettingsStore(state => state.moneda);
 
   const formatPercentage = (value) => {
     return `${(value || 0).toFixed(1)}%`;

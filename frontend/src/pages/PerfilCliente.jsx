@@ -4,6 +4,8 @@ import { fetchCliente, updateCliente } from "../api/clientes";
 import { fetchPrestamosByCliente } from "../api/prestamos";
 import { fetchPagosByPrestamo } from "../api/pagos";
 import "../styles/PerfilCliente.css";
+import { formatCurrency } from '../utils/formatCurrency';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 const PerfilCliente = () => {
   const { id } = useParams();
@@ -64,12 +66,8 @@ const PerfilCliente = () => {
     return date.toLocaleDateString('es-AR');
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount);
-  };
+  // Suscribirse a la moneda para re-render cuando cambie
+  const monedaSelected = useSettingsStore(state => state.moneda);
 
   const getEstadoBadge = (estado) => {
     const badges = {

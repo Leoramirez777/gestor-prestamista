@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import "bootstrap/dist/css/bootstrap.min.css";
 import "../styles/Resumen.css";
+import { formatCurrency } from '../utils/formatCurrency';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 // Importar APIs
 import { fetchMetricsSummary, fetchPeriodMetrics, fetchExpectativas } from '../api/metrics';
@@ -143,12 +145,9 @@ function Resumen() {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount || 0);
-  };
+  // formatCurrency imported from utils (usa la moneda del store/localStorage)
+  // Suscribirse a la moneda para forzar re-render cuando cambie
+  const monedaSelected = useSettingsStore(state => state.moneda);
 
   const formatDate = (dateStr) => {
     const d = new Date(dateStr + 'T00:00:00');

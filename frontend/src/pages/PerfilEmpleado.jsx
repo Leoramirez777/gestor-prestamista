@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { fetchEmpleado, fetchComisionesEmpleado, fetchComisionesVendedorEmpleado } from "../api/empleados";
 import "../styles/PerfilEmpleado.css";
+import formatCurrency from '../utils/formatCurrency';
+import useSettingsStore from '../stores/useSettingsStore';
 
 export default function PerfilEmpleado() {
   const { id } = useParams();
@@ -50,6 +52,9 @@ export default function PerfilEmpleado() {
     };
     load();
   }, [id]);
+
+  // subscribe to moneda to force re-render on currency change
+  const moneda = useSettingsStore(state => state.moneda);
 
   const formatDate = (dateString) => {
     if (!dateString) return "—";
@@ -155,7 +160,7 @@ export default function PerfilEmpleado() {
           <h4 className="mb-0">Historial de Comisiones</h4>
           {comisiones.length > 0 && (
             <div className="fs-5 fw-bold">
-              Total: ${comisiones.reduce((sum, c) => sum + parseFloat(c.monto_comision || 0), 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              Total: {formatCurrency(comisiones.reduce((sum, c) => sum + parseFloat(c.monto_comision || 0), 0))}
             </div>
           )}
         </div>
@@ -184,8 +189,8 @@ export default function PerfilEmpleado() {
                       <td className="text-capitalize">{c.tipo}</td>
                       <td>{c.ref_label} #{c.ref_id}</td>
                       <td className="text-center">{c.porcentaje}%</td>
-                      <td className="text-end fw-semibold empleado-comision-amount">
-                        ${parseFloat(c.monto_comision || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <td className="text-end fw-semibold empleado-comision-amount">
+                        {formatCurrency(parseFloat(c.monto_comision || 0))}
                       </td>
                     </tr>
                   ))}

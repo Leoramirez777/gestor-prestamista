@@ -11,6 +11,8 @@ import { fetchPrestamos } from './api/prestamos';
 import { fetchPagos } from './api/pagos';
 import { fetchMetricsSummary } from './api/metrics';
 import { logout } from './api/auth';
+import formatCurrency from './utils/formatCurrency';
+import useSettingsStore from './stores/useSettingsStore';
 
 function App({ onLogout }) {
   const navigate = useNavigate();
@@ -47,6 +49,9 @@ function App({ onLogout }) {
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
+
+  // Suscribirse a la moneda para re-render cuando cambie
+  const monedaSelected = useSettingsStore(state => state.moneda);
 
   const handleLogout = () => {
     logout();
@@ -93,7 +98,7 @@ function App({ onLogout }) {
       const actividadReciente = [
         ...pagosOrdenados.slice(0, 3).map(p => ({
           tipo: 'pago',
-          descripcion: `Pago de $${p.monto.toLocaleString('es-AR')} recibido`,
+          descripcion: `Pago de ${formatCurrency(p.monto)} recibido`,
           fecha: p.fecha_pago,
           id: p.id,
           timestamp: p.created_at || p.fecha_pago,
@@ -102,7 +107,7 @@ function App({ onLogout }) {
         })),
         ...prestamosOrdenados.slice(0, 2).map(p => ({
           tipo: 'prestamo',
-          descripcion: `Préstamo de $${p.monto.toLocaleString('es-AR')} creado`,
+          descripcion: `Préstamo de ${formatCurrency(p.monto)} creado`,
           fecha: p.created_at || p.fecha_inicio,
           id: p.id,
           timestamp: p.created_at || p.fecha_inicio,
@@ -127,12 +132,7 @@ function App({ onLogout }) {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount || 0);
-  };
+  // formatting uses centralized helper
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCierreCaja, fetchMovimientosCaja, crearMovimientoCaja, cerrarDia, abrirDia } from '../api/caja';
+import formatCurrency from '../utils/formatCurrency';
+import useSettingsStore from '../stores/useSettingsStore';
 
 function Caja() {
   const navigate = useNavigate();
@@ -39,7 +41,8 @@ function Caja() {
     }
   };
 
-  const formatCurrency = (amount) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount || 0);
+  // subscribe to moneda so component re-renders on currency change
+  const moneda = useSettingsStore(state => state.moneda);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

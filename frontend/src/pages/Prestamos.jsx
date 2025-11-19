@@ -4,6 +4,8 @@ import { fetchPrestamos } from '../api/prestamos';
 import { fetchClientes } from '../api/clientes';
 import { fetchEmpleados } from '../api/empleados';
 import '../styles/Prestamos.css';
+import { formatCurrency } from '../utils/formatCurrency';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 export default function Prestamos() {
   const navigate = useNavigate();
@@ -78,12 +80,8 @@ export default function Prestamos() {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount || 0);
-  };
+  // Suscribirse a la moneda para forzar re-render cuando cambie
+  const monedaSelected = useSettingsStore(state => state.moneda);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';

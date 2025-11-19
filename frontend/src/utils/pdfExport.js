@@ -6,6 +6,7 @@ async function getJsPdf() {
   await import('jspdf-autotable'); // registra autoTable en la instancia
   return jsPDF;
 }
+import { formatCurrency } from './formatCurrency';
 
 /**
  * Exportar detalles de un préstamo a PDF
@@ -37,12 +38,7 @@ export async function exportPrestamoPDF(prestamo, cliente, pagos = [], amortizac
   doc.text('Datos del Préstamo', 14, 60);
   doc.setFont(undefined, 'normal');
   
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount || 0);
-  };
+  // formatCurrency importado se usa para respetar la moneda seleccionada
   
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -155,12 +151,7 @@ export async function exportPagoPDF(pago, prestamo, cliente, cobrador = null) {
   doc.setTextColor(0, 0, 0);
   doc.text(`Recibo #${pago.id}`, 14, 35);
   
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount || 0);
-  };
+  // formatCurrency importado se usa para respetar la moneda seleccionada
   
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -310,7 +301,7 @@ export async function exportContratoPrestamoFormatoPDF({ prestamo, cliente, vend
   const doc = new jsPDF('p','mm','a4');
 
   const formatDate = (d) => new Date(d).toLocaleDateString('es-ES', { day:'2-digit', month:'long', year:'numeric' });
-  const moneda = (v) => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(v||0);
+  const moneda = (v) => formatCurrency(v);
 
   // Determinar quién es el prestamista (vendedor o admin)
   const prestamista = vendedor ? {
@@ -364,7 +355,7 @@ export async function exportReciboPagoFormatoPDF({ pago, cliente, prestamo, rece
   const doc = new jsPDF('p','mm','a4');
 
   const formatDate = (d) => new Date(d).toLocaleDateString('es-ES');
-  const moneda = (v) => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(v||0);
+  const moneda = (v) => formatCurrency(v);
 
   // Encabezado
   doc.setFontSize(22); doc.setFont(undefined,'bold');

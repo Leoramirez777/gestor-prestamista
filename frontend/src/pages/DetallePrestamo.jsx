@@ -5,6 +5,8 @@ import { fetchCliente } from '../api/clientes';
 import { fetchPagosByPrestamo } from '../api/pagos';
 import { exportPrestamoPDF, exportContratoPrestamoFormatoPDF } from '../utils/pdfExport';
 import '../styles/DetallePrestamo.css';
+import formatCurrency from '../utils/formatCurrency';
+import useSettingsStore from '../stores/useSettingsStore';
 
 export default function DetallePrestamo() {
   const { id } = useParams();
@@ -24,6 +26,9 @@ export default function DetallePrestamo() {
     frecuencia_pago: 'semanal',
     fecha_inicio: new Date().toISOString().split('T')[0]
   });
+
+  // subscribe to moneda so component re-renders when currency changes
+  const moneda = useSettingsStore(state => state.moneda);
 
   useEffect(() => {
     const loadData = async () => {
@@ -78,13 +83,7 @@ export default function DetallePrestamo() {
     loadData();
   }, [id]);
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-      minimumFractionDigits: 2
-    }).format(amount || 0);
-  };
+  // formatting moved to centralized helper `formatCurrency`
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';

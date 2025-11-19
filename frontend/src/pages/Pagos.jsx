@@ -7,6 +7,8 @@ import { fetchEmpleados } from '../api/empleados';
 import { exportReciboPagoFormatoPDF } from '../utils/pdfExport';
 import { getCurrentUser } from '../api/auth';
 import '../styles/Pagos.css';
+import formatCurrency from '../utils/formatCurrency';
+import useSettingsStore from '../stores/useSettingsStore';
 
 export default function Pagos() {
   const navigate = useNavigate();
@@ -147,17 +149,13 @@ export default function Pagos() {
     
     const cliente = clientes.find(c => c.id === prestamo.cliente_id);
     return {
-      info: `Préstamo #${prestamo.id} - $${prestamo.monto}`,
+      info: `Préstamo #${prestamo.id} - ${formatCurrency(prestamo.monto)}`,
       cliente: cliente ? cliente.nombre : 'Cliente desconocido'
     };
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount || 0);
-  };
+  // Suscribirse a la moneda para forzar re-render cuando cambie
+  const monedaSelected = useSettingsStore(state => state.moneda);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
