@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import clientes, prestamos, pagos, auth, metrics, empleados, caja, comisiones
 from app.database.database import engine, SessionLocal
 from app.models import models
-from app.caja_service import backfill_caja_movimientos
+from app.caja_service import backfill_caja_movimientos, autocerrar_dias_pendientes
 
 # Crear las tablas en la base de datos
 models.Base.metadata.create_all(bind=engine)
@@ -15,6 +15,8 @@ def init_backfill():
         creados = backfill_caja_movimientos(db)
         if creados:
             print(f"[Caja] Backfill inicial completado: {creados} movimientos creados.")
+        # Autocerrar días pendientes al iniciar
+        autocerrar_dias_pendientes(db)
     except Exception as e:
         print(f"[Caja] Error en backfill inicial: {e}")
     finally:

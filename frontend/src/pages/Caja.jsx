@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchCierreCaja, fetchMovimientosCaja, crearMovimientoCaja, cerrarDia } from '../api/caja';
+import { fetchCierreCaja, fetchMovimientosCaja, crearMovimientoCaja, cerrarDia, abrirDia } from '../api/caja';
 
 function Caja() {
   const navigate = useNavigate();
@@ -15,7 +15,7 @@ function Caja() {
     categoria: '',
     descripcion: '',
   });
-  const [saldoFinalInput, setSaldoFinalInput] = useState('');
+  // No pedimos saldo final manualmente; se usará el saldo esperado
   const [showCerrarModal, setShowCerrarModal] = useState(false);
   const [error, setError] = useState(null);
 
@@ -64,15 +64,22 @@ function Caja() {
   };
 
   const handleCerrarDia = async () => {
-    if (!saldoFinalInput) {
-      setError('Debes ingresar el saldo final.');
-      return;
-    }
     try {
       setError(null);
-      await cerrarDia(fecha, parseFloat(saldoFinalInput));
+      // Cerrar usando el saldo esperado como saldo final
+      const finalValue = cierre ? parseFloat(cierre.saldo_esperado) : 0;
+      await cerrarDia(fecha, finalValue);
       setShowCerrarModal(false);
-      setSaldoFinalInput('');
+      await cargarDatos();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleAbrirDia = async () => {
+    try {
+      setError(null);
+      await abrirDia(fecha);
       await cargarDatos();
     } catch (e) {
       setError(e.message);
@@ -92,8 +99,9 @@ function Caja() {
       {loading && <div className="alert alert-info">Cargando...</div>}
       {cierre && !loading && (
         <>
+          {/* Resumen principal del día */}
           <div className="row g-3 mb-4">
-            <div className="col-md-2">
+            <div className="col-md-3">
               <div className="card shadow-sm border-0">
                 <div className="card-body">
                   <h6 className="text-muted mb-1">Saldo Inicial</h6>
@@ -101,7 +109,7 @@ function Caja() {
                 </div>
               </div>
             </div>
-            <div className="col-md-2">
+            <div className="col-md-3">
               <div className="card shadow-sm border-0">
                 <div className="card-body">
                   <h6 className="text-muted mb-1">Ingresos</h6>
@@ -109,7 +117,15 @@ function Caja() {
                 </div>
               </div>
             </div>
-            <div className="col-md-2">
+            <div className="col-md-3">
+              <div className="card shadow-sm border-0">
+                <div className="card-body">
+                  <h6 className="text-muted mb-1">Comisión Pagada</h6>
+                  <h5 className="fw-bold text-danger mb-0">{cierre?.comisiones ? `-${formatCurrency(cierre.comisiones.total)}` : '-'}</h5>
+                </div>
+              </div>
+            </div>
+            <div className="col-md-3">
               <div className="card shadow-sm border-0">
                 <div className="card-body">
                   <h6 className="text-muted mb-1">Egresos</h6>
@@ -117,23 +133,21 @@ function Caja() {
                 </div>
               </div>
             </div>
-            <div className="col-md-2">
-              <div className="card shadow-sm border-0">
-                <div className="card-body">
-                  <h6 className="text-muted mb-1">Saldo Esperado</h6>
-                  <h5 className={`fw-bold ${cierre.saldo_esperado >=0 ? 'text-success' : 'text-danger'} mb-0`}>{formatCurrency(cierre.saldo_esperado)}</h5>
-                </div>
-              </div>
-            </div>
-            <div className="col-md-2">
+          </div>
+
+          {/* Segunda fila con saldo final (calculado hasta cerrar) y estado */}
+          <div className="row g-3 mb-4">
+            <div className="col-md-6">
               <div className="card shadow-sm border-0">
                 <div className="card-body">
                   <h6 className="text-muted mb-1">Saldo Final</h6>
-                  <h5 className="fw-bold text-info mb-0">{cierre.saldo_final !== null ? formatCurrency(cierre.saldo_final) : '-'}</h5>
+                  <h5 className={`fw-bold mb-0 ${((cierre.saldo_final ?? cierre.saldo_esperado) >= 0) ? 'text-success' : 'text-danger'}`}>
+                    {formatCurrency(cierre.saldo_final !== null ? cierre.saldo_final : cierre.saldo_esperado)}
+                  </h5>
                 </div>
               </div>
             </div>
-            <div className="col-md-2">
+            <div className="col-md-6">
               <div className="card shadow-sm border-0">
                 <div className="card-body">
                   <h6 className="text-muted mb-1">Estado</h6>
@@ -146,20 +160,19 @@ function Caja() {
               </div>
             </div>
           </div>
-          {cierre.diferencia !== null && (
-            <div className="alert alert-info mb-3">
-              <strong>Diferencia:</strong> {formatCurrency(cierre.diferencia)} 
-              {cierre.diferencia > 0 && ' (sobra)'}
-              {cierre.diferencia < 0 && ' (falta)'}
-            </div>
-          )}
-          {!cierre.cerrado && (
-            <div className="d-flex justify-content-end mb-3">
+
+          {/* Diferencia oculta a pedido del usuario */}
+          <div className="d-flex justify-content-end mb-3">
+            {!cierre.cerrado ? (
               <button className="btn btn-warning btn-lg" onClick={() => setShowCerrarModal(true)}>
                 <i className="fas fa-lock me-2"></i>Cerrar Día
               </button>
-            </div>
-          )}
+            ) : (
+              <button className="btn btn-success btn-lg" onClick={handleAbrirDia}>
+                <i className="fas fa-unlock me-2"></i>Abrir Día
+              </button>
+            )}
+          </div>
         </>
       )}
 
@@ -170,25 +183,25 @@ function Caja() {
           <form onSubmit={handleSubmit} className="row g-3">
             <div className="col-md-2">
               <label className="form-label">Tipo</label>
-              <select className="form-select" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
+              <select className="form-select" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} disabled={cierre?.cerrado}>
                 <option value="ingreso">Ingreso</option>
                 <option value="egreso">Egreso</option>
               </select>
             </div>
             <div className="col-md-2">
               <label className="form-label">Monto</label>
-              <input type="number" step="0.01" className="form-control" value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value })} required />
+              <input type="number" step="0.01" className="form-control" value={form.monto} onChange={(e) => setForm({ ...form, monto: e.target.value })} required disabled={cierre?.cerrado} />
             </div>
             <div className="col-md-3">
               <label className="form-label">Categoría</label>
-              <input type="text" className="form-control" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} placeholder="ajuste, otros" />
+              <input type="text" className="form-control" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })} placeholder="prestamo, pago, comision, ajuste, otros" disabled={cierre?.cerrado} />
             </div>
             <div className="col-md-5">
               <label className="form-label">Descripción</label>
-              <input type="text" className="form-control" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} />
+              <input type="text" className="form-control" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} disabled={cierre?.cerrado} />
             </div>
             <div className="col-12 d-flex justify-content-end">
-              <button className="btn btn-primary"><i className="fas fa-save me-2"></i>Registrar</button>
+              <button className="btn btn-primary" disabled={cierre?.cerrado}><i className="fas fa-save me-2"></i>Registrar</button>
             </div>
           </form>
         </div>
@@ -243,20 +256,8 @@ function Caja() {
                 <button type="button" className="btn-close" onClick={() => setShowCerrarModal(false)}></button>
               </div>
               <div className="modal-body">
-                <p>Confirma el <strong>saldo final</strong> en caja para cerrar el día.</p>
-                <p className="text-muted small">Saldo esperado: <strong>{cierre ? formatCurrency(cierre.saldo_esperado) : ''}</strong></p>
-                <div className="mb-3">
-                  <label className="form-label">Saldo Final (confirmado)</label>
-                  <input 
-                    type="number" 
-                    step="0.01" 
-                    className="form-control" 
-                    value={saldoFinalInput} 
-                    onChange={(e) => setSaldoFinalInput(e.target.value)} 
-                    placeholder="Ingresa el saldo real"
-                    autoFocus
-                  />
-                </div>
+                <p>Cerraremos el día usando el <strong>saldo esperado</strong> como saldo final.</p>
+                <p className="text-muted small">Saldo que se registrará: <strong>{cierre ? formatCurrency(cierre.saldo_esperado) : ''}</strong></p>
                 {error && <div className="alert alert-danger">{error}</div>}
               </div>
               <div className="modal-footer">

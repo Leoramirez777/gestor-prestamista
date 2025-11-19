@@ -6,7 +6,7 @@ from app.database.database import get_db
 from app.models.models import Prestamo, Cliente, Empleado, PrestamoVendedor, MovimientoCaja
 from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate, Cuota, PrestamoVendedor as PrestamoVendedorSchema
 from app.amortization_service import generar_amortizacion
-from app.caja_service import actualizar_totales_cierre
+from app.caja_service import actualizar_totales_cierre, get_or_create_cierre
 
 router = APIRouter()
 
@@ -67,6 +67,11 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
     
     valor_cuota = monto_total / cuotas_totales
     
+    # Bloquear si el día está cerrado para la fecha de inicio
+    cierre_fecha = get_or_create_cierre(db, prestamo.fecha_inicio)
+    if cierre_fecha.cerrado:
+        raise HTTPException(status_code=400, detail="El día está cerrado. Abre la caja para registrar préstamos.")
+
     db_prestamo = Prestamo(
         cliente_id=prestamo.cliente_id,
         monto=prestamo.monto,
@@ -92,7 +97,7 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
     movimiento_caja = MovimientoCaja(
         fecha=db_prestamo.fecha_inicio,
         tipo="egreso",
-        categoria="desembolso_prestamo",
+        categoria="prestamo",
         descripcion=f"Desembolso préstamo #{db_prestamo.id} cliente {db_prestamo.cliente_id}",
         monto=db_prestamo.monto,
         referencia_tipo="prestamo",

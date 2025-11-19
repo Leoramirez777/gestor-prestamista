@@ -37,3 +37,12 @@ export async function cerrarDia(fecha, saldoFinal) {
     handleApiError(err);
   }
 }
+
+export async function abrirDia(fecha) {
+  try {
+    const { data } = await api.post('/api/caja/abrir-dia', { fecha });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

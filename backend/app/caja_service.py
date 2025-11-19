@@ -18,7 +18,8 @@ def backfill_caja_movimientos(db: Session):
         movimiento = MovimientoCaja(
             fecha=p.fecha_inicio,
             tipo="egreso",
-            categoria="desembolso_prestamo",
+            # Categoría normalizada
+            categoria="prestamo",
             descripcion=f"Desembolso préstamo #{p.id} cliente {p.cliente_id}",
             monto=p.monto,
             referencia_tipo="prestamo",
@@ -33,7 +34,8 @@ def backfill_caja_movimientos(db: Session):
         movimiento = MovimientoCaja(
             fecha=pg.fecha_pago,
             tipo="ingreso",
-            categoria="pago_cuota",
+            # Categoría normalizada
+            categoria="pago",
             descripcion=f"Pago #{pg.id} préstamo {pg.prestamo_id}",
             monto=pg.monto,
             referencia_tipo="pago",
@@ -91,6 +93,23 @@ def actualizar_totales_cierre(db: Session, fecha: date):
     return cierre
 
 
+def abrir_dia(db: Session, fecha: date, usuario_id: int | None = None) -> CajaCierre:
+    """Reabre la caja del día: borra saldo_final/diferencia y marca como abierto."""
+    cierre = get_or_create_cierre(db, fecha)
+    if not cierre.cerrado:
+        return cierre
+    # Reabrir
+    cierre.cerrado = False
+    cierre.saldo_final = None
+    cierre.diferencia = None
+    cierre.closed_at = None
+    # Recalcular totales y saldo esperado
+    actualizar_totales_cierre(db, fecha)
+    db.commit()
+    db.refresh(cierre)
+    return cierre
+
+
 def cerrar_dia(db: Session, fecha: date, saldo_final: float, usuario_id: int = None):
     """Realiza el cierre formal del día. Valida y bloquea el día."""
     cierre = get_or_create_cierre(db, fecha)
@@ -132,9 +151,28 @@ def listar_movimientos_por_fecha(db: Session, fecha: date):
     return db.query(MovimientoCaja).filter(MovimientoCaja.fecha == fecha).order_by(MovimientoCaja.id.asc()).all()
 
 
+def autocerrar_dias_pendientes(db: Session):
+    """Cierra automáticamente todos los días anteriores a hoy que estén abiertos.
+    Usa saldo_esperado como saldo_final para no introducir diferencias.
+    """
+    hoy = date.today()
+    pendientes = db.query(CajaCierre).filter(CajaCierre.fecha < hoy, CajaCierre.cerrado == False).all()
+    for c in pendientes:
+        # Asegurar totales actualizados
+        actualizar_totales_cierre(db, c.fecha)
+        c.saldo_final = c.saldo_esperado
+        c.diferencia = 0.0
+        c.cerrado = True
+        c.closed_at = datetime.utcnow()
+    if pendientes:
+        db.commit()
+
+
 def get_cierre_caja(db: Session, fecha: date):
     """Obtiene el cierre del día con saldo_inicial, ingresos, egresos, saldo_esperado, saldo_final, cerrado.
     Incluye cálculo de comisiones y flujo neto real."""
+    # Antes de responder, autocerrar días anteriores abiertos (olvidos al pasar 00:00)
+    autocerrar_dias_pendientes(db)
     cierre = get_or_create_cierre(db, fecha)
     actualizar_totales_cierre(db, fecha)
     

@@ -5,7 +5,7 @@ from datetime import date
 from app.database.database import get_db
 from app.models.models import Pago, Prestamo, PagoCobrador, PagoVendedor, PrestamoVendedor, Empleado, MovimientoCaja
 from app.schemas.schemas import Pago as PagoSchema, PagoCreate, PagoCobrador as PagoCobradorSchema, PagoVendedor as PagoVendedorSchema
-from app.caja_service import actualizar_totales_cierre
+from app.caja_service import actualizar_totales_cierre, get_or_create_cierre
 
 router = APIRouter()
 
@@ -69,6 +69,11 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     cobrador_nombre = pago_data.pop('cobrador_nombre', None)
     porcentaje_cobrador = pago_data.pop('porcentaje_cobrador', None)
     
+    # Bloquear si el día está cerrado
+    cierre_hoy = get_or_create_cierre(db, pago_data['fecha_pago'])
+    if cierre_hoy.cerrado:
+        raise HTTPException(status_code=400, detail="El día está cerrado. Abre la caja para registrar pagos.")
+
     db_pago = Pago(**pago_data)
     db.add(db_pago)
     
@@ -135,7 +140,7 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     movimiento_caja = MovimientoCaja(
         fecha=db_pago.fecha_pago,
         tipo="ingreso",
-        categoria="pago_cuota",
+        categoria="pago",
         descripcion=f"Pago #{db_pago.id} préstamo {db_pago.prestamo_id}",
         monto=db_pago.monto,
         referencia_tipo="pago",
@@ -172,6 +177,20 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
         )
         db.add(registro)
         db.commit()
+        # Registrar movimiento de caja como egreso por comisión de cobrador
+        mov_comision_cobrador = MovimientoCaja(
+            fecha=db_pago.fecha_pago,
+            tipo="egreso",
+            categoria="comision",
+            descripcion=f"Comisión cobrador pago #{db_pago.id} préstamo {db_pago.prestamo_id}",
+            monto=monto_comision,
+            referencia_tipo="pago",
+            referencia_id=db_pago.id,
+            usuario_id=None
+        )
+        db.add(mov_comision_cobrador)
+        db.commit()
+        actualizar_totales_cierre(db, db_pago.fecha_pago)
 
     # Registrar comisión del vendedor si existe en el préstamo
     prestamo_vendedor = db.query(PrestamoVendedor).filter(
@@ -192,6 +211,20 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
         )
         db.add(registro_vendedor)
         db.commit()
+        # Registrar movimiento de caja como egreso por comisión de vendedor
+        mov_comision_vendedor = MovimientoCaja(
+            fecha=db_pago.fecha_pago,
+            tipo="egreso",
+            categoria="comision",
+            descripcion=f"Comisión vendedor pago #{db_pago.id} préstamo {db_pago.prestamo_id}",
+            monto=monto_comision_vendedor,
+            referencia_tipo="pago",
+            referencia_id=db_pago.id,
+            usuario_id=None
+        )
+        db.add(mov_comision_vendedor)
+        db.commit()
+        actualizar_totales_cierre(db, db_pago.fecha_pago)
 
     return db_pago
 

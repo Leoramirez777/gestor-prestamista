@@ -229,7 +229,7 @@ class MovimientoCajaBase(BaseModel):
     fecha: date
     tipo: str  # ingreso | egreso
     monto: float
-    categoria: Optional[str] = None  # desembolso_prestamo, pago_cuota, ajuste, gastos_operativos, ingreso_extra
+    categoria: Optional[str] = None  # prestamo | pago | comision | ajuste | otros
     descripcion: Optional[str] = None
     referencia_tipo: Optional[str] = None  # prestamo | pago | manual
     referencia_id: Optional[int] = None
@@ -260,6 +260,9 @@ class CierreCaja(BaseModel):
 class CerrarDiaRequest(BaseModel):
     fecha: date
     saldo_final: float
+
+class AbrirDiaRequest(BaseModel):
+    fecha: date
 
 class CajaCierreResponse(BaseModel):
     id: int
