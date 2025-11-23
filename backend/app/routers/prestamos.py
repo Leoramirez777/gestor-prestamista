@@ -94,11 +94,14 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
     db.refresh(db_prestamo)
 
     # Crear movimiento de caja automático (egreso por desembolso)
+    cliente = db.query(Cliente).filter(Cliente.id == db_prestamo.cliente_id).first()
+    cliente_nombre = cliente.nombre if cliente else f"Cliente {db_prestamo.cliente_id}"
+    
     movimiento_caja = MovimientoCaja(
         fecha=db_prestamo.fecha_inicio,
         tipo="egreso",
         categoria="prestamo",
-        descripcion=f"Desembolso préstamo #{db_prestamo.id} cliente {db_prestamo.cliente_id}",
+        descripcion=f"Desembolso préstamo #{db_prestamo.id} - {cliente_nombre}",
         monto=db_prestamo.monto,
         referencia_tipo="prestamo",
         referencia_id=db_prestamo.id,

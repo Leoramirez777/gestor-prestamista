@@ -261,6 +261,8 @@ class CierreCaja(BaseModel):
     cerrado: bool
     detalle_ingresos: dict
     detalle_egresos: dict
+    comisiones: dict | None = None
+    flujo_neto: dict | None = None
 
 class CerrarDiaRequest(BaseModel):
     fecha: date

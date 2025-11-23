@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.models import MovimientoCaja, Prestamo, Pago, CajaCierre, PagoVendedor, PagoCobrador
+from app.models.models import MovimientoCaja, Prestamo, Pago, CajaCierre, PagoVendedor, PagoCobrador, Cliente
 
 
 def backfill_caja_movimientos(db: Session):
@@ -15,12 +15,13 @@ def backfill_caja_movimientos(db: Session):
     # Egresos por desembolso de préstamos (monto principal)
     prestamos = db.query(Prestamo).all()
     for p in prestamos:
+        cliente = db.query(Cliente).filter(Cliente.id == p.cliente_id).first()
+        nombre = cliente.nombre if cliente else f"Cliente {p.cliente_id}"
         movimiento = MovimientoCaja(
             fecha=p.fecha_inicio,
             tipo="egreso",
-            # Categoría normalizada
             categoria="prestamo",
-            descripcion=f"Desembolso préstamo #{p.id} cliente {p.cliente_id}",
+            descripcion=f"Desembolso préstamo #{p.id} - {nombre}",
             monto=p.monto,
             referencia_tipo="prestamo",
             referencia_id=p.id
@@ -31,12 +32,14 @@ def backfill_caja_movimientos(db: Session):
     # Ingresos por pagos
     pagos = db.query(Pago).all()
     for pg in pagos:
+        prestamo = db.query(Prestamo).filter(Prestamo.id == pg.prestamo_id).first()
+        cliente = db.query(Cliente).filter(Cliente.id == prestamo.cliente_id).first() if prestamo else None
+        nombre = cliente.nombre if cliente else (f"Cliente {prestamo.cliente_id}" if prestamo else "Cliente")
         movimiento = MovimientoCaja(
             fecha=pg.fecha_pago,
             tipo="ingreso",
-            # Categoría normalizada
             categoria="pago",
-            descripcion=f"Pago #{pg.id} préstamo {pg.prestamo_id}",
+            descripcion=f"Pago #{pg.id} préstamo {pg.prestamo_id} - {nombre}",
             monto=pg.monto,
             referencia_tipo="pago",
             referencia_id=pg.id
@@ -166,6 +169,51 @@ def autocerrar_dias_pendientes(db: Session):
         c.closed_at = datetime.utcnow()
     if pendientes:
         db.commit()
+
+def normalizar_descripciones_movimientos(db: Session):
+    """Actualiza descripciones antiguas que usan 'cliente X' para incluir el nombre real."""
+    movimientos = db.query(MovimientoCaja).all()
+    cambios = 0
+    for m in movimientos:
+        if m.categoria == "prestamo" and "cliente" in (m.descripcion or "") and " - " not in m.descripcion:
+            # Extraer id cliente desde texto
+            parts = m.descripcion.split("cliente")
+            if len(parts) > 1:
+                num = parts[-1].strip()
+                try:
+                    cid = int(num)
+                    cliente = db.query(Cliente).filter(Cliente.id == cid).first()
+                    if cliente:
+                        m.descripcion = m.descripcion.replace(f"cliente {cid}", f"- {cliente.nombre}")
+                        cambios += 1
+                except ValueError:
+                    pass
+        if m.categoria == "pago" and "préstamo" in (m.descripcion or "") and " - " not in m.descripcion:
+            # Añadir nombre del cliente del préstamo
+            # Buscar número de préstamo
+            try:
+                # Buscar último número en la cadena
+                tokens = [t for t in m.descripcion.split() if t.startswith("préstamo") or t.startswith("préstamo")]
+            except Exception:
+                tokens = []
+            # Simpler: parse after word 'préstamo'
+            if "préstamo" in m.descripcion:
+                try:
+                    idx = m.descripcion.index("préstamo")
+                    resto = m.descripcion[idx+8:].strip()
+                    pid = int(resto.split()[0].replace("#","")) if resto else None
+                    if pid:
+                        prestamo = db.query(Prestamo).filter(Prestamo.id == pid).first()
+                        if prestamo:
+                            cliente = db.query(Cliente).filter(Cliente.id == prestamo.cliente_id).first()
+                            if cliente:
+                                m.descripcion = m.descripcion + f" - {cliente.nombre}"
+                                cambios += 1
+                except Exception:
+                    pass
+    if cambios:
+        db.commit()
+    return cambios
 
 
 def get_cierre_caja(db: Session, fecha: date):

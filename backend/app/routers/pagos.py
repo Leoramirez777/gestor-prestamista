@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import date
 from app.database.database import get_db
-from app.models.models import Pago, Prestamo, PagoCobrador, PagoVendedor, PrestamoVendedor, Empleado, MovimientoCaja
+from app.models.models import Pago, Prestamo, PagoCobrador, PagoVendedor, PrestamoVendedor, Empleado, MovimientoCaja, Cliente
 from app.schemas.schemas import Pago as PagoSchema, PagoCreate, PagoCobrador as PagoCobradorSchema, PagoVendedor as PagoVendedorSchema
 from app.caja_service import actualizar_totales_cierre, get_or_create_cierre
 
@@ -137,11 +137,15 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     db.refresh(db_pago)
 
     # Crear movimiento de caja automático (ingreso por pago)
+    cliente = db.query(Cliente).filter(Cliente.id == prestamo.cliente_id).first()
+    cliente_nombre = cliente.nombre if cliente else f"Cliente {prestamo.cliente_id}"
+    num_cuota = prestamo.cuotas_pagadas
+    
     movimiento_caja = MovimientoCaja(
         fecha=db_pago.fecha_pago,
         tipo="ingreso",
         categoria="pago",
-        descripcion=f"Pago #{db_pago.id} préstamo {db_pago.prestamo_id}",
+        descripcion=f"Cuota #{num_cuota} préstamo {db_pago.prestamo_id} - {cliente_nombre}",
         monto=db_pago.monto,
         referencia_tipo="pago",
         referencia_id=db_pago.id,

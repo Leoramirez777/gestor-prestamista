@@ -285,6 +285,39 @@ function App({ onLogout }) {
                     </p>
                     <div className="d-grid gap-2">
                       {(() => {
+                        // Personalización específica solicitada
+                        if (item.title === 'Resumen Financiero') {
+                          return (
+                            <button
+                              className={`btn btn-${item.color} btn-lg fw-semibold`}
+                              onClick={() => navegarA(item.path)}
+                              style={{ borderRadius: '10px' }}
+                            >
+                              {typeof item.icon === 'string' && (item.icon.startsWith('fa') || item.icon.includes('fa-')) ? (
+                                <i className={`${item.icon} me-2`} />
+                              ) : (
+                                <span className="me-2" style={{ fontSize: '1.1rem' }}>{item.icon}</span>
+                              )}
+                              Ver Resumen Financiero
+                            </button>
+                          );
+                        }
+                        if (item.title === 'Caja Diaria') {
+                          return (
+                            <button
+                              className={`btn btn-${item.color} btn-lg fw-semibold`}
+                              onClick={() => navegarA(item.path)}
+                              style={{ borderRadius: '10px' }}
+                            >
+                              {typeof item.icon === 'string' && (item.icon.startsWith('fa') || item.icon.includes('fa-')) ? (
+                                <i className={`${item.icon} me-2`} />
+                              ) : (
+                                <span className="me-2" style={{ fontSize: '1.1rem' }}>{item.icon}</span>
+                              )}
+                              Ver Caja
+                            </button>
+                          );
+                        }
                         const { viewLabel, newLabel } = getCardLabels(item.title);
                         return (
                           <>

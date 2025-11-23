@@ -20,6 +20,13 @@ function Caja() {
   // No pedimos saldo final manualmente; se usará el saldo esperado
   const [showCerrarModal, setShowCerrarModal] = useState(false);
   const [error, setError] = useState(null);
+  const [filtroTipo, setFiltroTipo] = useState('todos');
+  const [filtroCategoria, setFiltroCategoria] = useState('todas');
+  const categoriasDisponibles = React.useMemo(() => {
+    const set = new Set();
+    movimientos.forEach(m => { if (m.categoria) set.add(m.categoria); });
+    return Array.from(set);
+  }, [movimientos]);
 
   useEffect(() => {
     cargarDatos();
@@ -104,15 +111,7 @@ function Caja() {
         <>
           {/* Resumen principal del día */}
           <div className="row g-3 mb-4">
-            <div className="col-md-3">
-              <div className="card shadow-sm border-0">
-                <div className="card-body">
-                  <h6 className="text-muted mb-1">Saldo Inicial</h6>
-                  <h5 className="fw-bold text-secondary mb-0">{formatCurrency(cierre.saldo_inicial)}</h5>
-                </div>
-              </div>
-            </div>
-            <div className="col-md-3">
+            <div className="col-md-4">
               <div className="card shadow-sm border-0">
                 <div className="card-body">
                   <h6 className="text-muted mb-1">Ingresos</h6>
@@ -120,7 +119,7 @@ function Caja() {
                 </div>
               </div>
             </div>
-            <div className="col-md-3">
+            <div className="col-md-4">
               <div className="card shadow-sm border-0">
                 <div className="card-body">
                   <h6 className="text-muted mb-1">Comisión Pagada</h6>
@@ -128,7 +127,7 @@ function Caja() {
                 </div>
               </div>
             </div>
-            <div className="col-md-3">
+            <div className="col-md-4">
               <div className="card shadow-sm border-0">
                 <div className="card-body">
                   <h6 className="text-muted mb-1">Egresos</h6>
@@ -213,9 +212,28 @@ function Caja() {
       {/* Lista de movimientos */}
       <div className="card shadow-sm border-0">
         <div className="card-body">
-          <h5 className="fw-bold mb-3"><i className="fas fa-list me-2"></i>Movimientos del Día</h5>
-          {movimientos.length === 0 ? (
-            <p className="text-muted">No hay movimientos registrados.</p>
+          <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
+            <h5 className="fw-bold mb-0"><i className="fas fa-list me-2"></i>Movimientos del Día</h5>
+            <div className="d-flex gap-2 flex-wrap">
+              <select className="form-select form-select-sm" style={{ maxWidth: '150px' }} value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+                <option value="todos">Todos</option>
+                <option value="ingreso">Ingresos</option>
+                <option value="egreso">Egresos</option>
+              </select>
+              <select className="form-select form-select-sm" style={{ maxWidth: '200px' }} value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+                <option value="todas">Todas</option>
+                {categoriasDisponibles.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {movimientos.filter(m => {
+            const matchTipo = filtroTipo === 'todos' || m.tipo === filtroTipo;
+            const matchCategoria = filtroCategoria === 'todas' || (m.categoria && m.categoria.toLowerCase() === filtroCategoria.toLowerCase());
+            return matchTipo && matchCategoria;
+          }).length === 0 ? (
+            <p className="text-muted">No hay movimientos que coincidan con el filtro.</p>
           ) : (
             <div className="table-responsive">
               <table className="table table-sm align-middle">
@@ -230,7 +248,11 @@ function Caja() {
                   </tr>
                 </thead>
                 <tbody>
-                  {movimientos.map(m => (
+                  {movimientos.filter(m => {
+                    const matchTipo = filtroTipo === 'todos' || m.tipo === filtroTipo;
+                    const matchCategoria = filtroCategoria === 'todas' || (m.categoria && m.categoria.toLowerCase() === filtroCategoria.toLowerCase());
+                    return matchTipo && matchCategoria;
+                  }).map(m => (
                     <tr key={m.id}>
                       <td>{m.id}</td>
                       <td>
