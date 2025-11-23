@@ -300,7 +300,11 @@ export async function exportContratoPrestamoFormatoPDF({ prestamo, cliente, vend
   const jsPDF = await getJsPdf();
   const doc = new jsPDF('p','mm','a4');
 
-  const formatDate = (d) => new Date(d).toLocaleDateString('es-ES', { day:'2-digit', month:'long', year:'numeric' });
+  const formatDate = (d) => {
+    const date = new Date(d);
+    return date.toLocaleDateString('es-ES', { day:'numeric', month:'long', year:'numeric' });
+  };
+  
   const moneda = (v) => formatCurrency(v);
 
   // Determinar quién es el prestamista (vendedor o admin)
@@ -314,38 +318,55 @@ export async function exportContratoPrestamoFormatoPDF({ prestamo, cliente, vend
     domicilio: adminData?.direccion || 'N/A'
   };
 
-  // Título
-  doc.setFontSize(18); doc.setFont(undefined,'bold');
-  doc.text('CONTRATO DE PRESTAMO DE DINERO', 105, 20, { align:'center' });
-  doc.setFontSize(16); doc.text('REUNIDOS', 105, 30, { align:'center' });
+  // Título centrado
+  doc.setFontSize(20);
+  doc.setFont(undefined, 'bold');
+  doc.text('CONTRATO DE PRÉSTAMO', 105, 25, { align: 'center' });
 
-  // Cuerpo tipo plantilla
-  doc.setFontSize(12); doc.setFont(undefined,'normal'); doc.setTextColor(0,0,0);
-  const left = 20, width = 170, lineH = 8;
-  let y = 50;
+  // Cuerpo del contrato
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'normal');
+  const left = 20, width = 170, lineH = 7;
+  let y = 45;
 
-  const linea1 = `Yo ${prestamista.nombre} con DNI Nº ${prestamista.dni} y con domicilio ${prestamista.domicilio} mediante este documento hago préstamo de dinero la cantidad de ${moneda(prestamo?.monto)}.`;
-  const linea2 = `Al señor(a) ${cliente?.nombre || '________________'} con DNI Nº ${cliente?.dni || '______________'} y con domicilio ${cliente?.direccion || '__________________________'} comprometiéndose a devolver el préstamo hasta el ${formatDate(prestamo?.fecha_vencimiento || fecha)} pagando mensualmente el interés del ${prestamo?.tasa_interes ?? 0}%.`;
+  // Convertir monto a letras
+  const montoEnLetras = numeroALetrasSimple(prestamo?.monto || 0);
+  
+  // Párrafo 1
+  const parrafo1 = `Yo, ${prestamista.nombre}, con domicilio en ${prestamista.domicilio}, dejo constancia mediante este documento de la realización de un préstamo por la suma de ${moneda(prestamo?.monto)} (${montoEnLetras} pesos argentinos) a favor del señor ${cliente?.nombre || '________________'}, con DNI ${cliente?.dni || '______________'} y con domicilio en ${cliente?.direccion || '__________________________'}.`;
+  
+  const splitted1 = doc.splitTextToSize(parrafo1, width);
+  doc.text(splitted1, left, y);
+  y += lineH * splitted1.length + 5;
 
-  const textoParrafos = [linea1, linea2];
-  textoParrafos.forEach(p => {
-    const splitted = doc.splitTextToSize(p, width);
-    doc.text(splitted, left, y);
-    y += lineH * splitted.length + 2;
-  });
+  // Párrafo 2
+  const parrafo2 = `El prestatario se compromete a devolver la totalidad del monto prestado antes del día ${formatDate(prestamo?.fecha_vencimiento || fecha)}, abonando además un interés mensual del ${prestamo?.tasa_interes ?? 0}% sobre el capital recibido.`;
+  
+  const splitted2 = doc.splitTextToSize(parrafo2, width);
+  doc.text(splitted2, left, y);
+  y += lineH * splitted2.length + 5;
 
-  // Pie con lugar y fecha
-  y += 6;
-  doc.setFont(undefined,'bold');
-  doc.text(`${lugar || ''} ${formatDate(fecha)}`, 105, y, { align:'center' });
+  // Párrafo 3
+  const parrafo3 = `Ambas partes declaran estar de acuerdo con las condiciones aquí establecidas y firman al pie en señal de conformidad.`;
+  
+  const splitted3 = doc.splitTextToSize(parrafo3, width);
+  doc.text(splitted3, left, y);
+  y += lineH * splitted3.length + 15;
 
-  // Firma
-  y += 25;
-  doc.setFont(undefined,'normal');
-  doc.line(35, y, 95, y);
-  doc.line(115, y, 175, y);
-  doc.text('Firma Prestamista', 65, y + 6, { align:'center' });
-  doc.text('Firma Deudor', 145, y + 6, { align:'center' });
+  // Fecha
+  doc.setFont(undefined, 'bold');
+  doc.text(`Fecha: ${formatDate(fecha)}`, left, y);
+  
+  y += 30;
+
+  // Líneas de firma
+  doc.setFont(undefined, 'normal');
+  doc.line(left, y, left + 70, y);
+  doc.line(left + 100, y, left + 170, y);
+  
+  y += 5;
+  doc.text('Firma del Prestamista', left + 10, y);
+  doc.text('Firma del Prestatario', left + 110, y);
 
   doc.save(`Contrato_Prestamo_${prestamo?.id || ''}.pdf`);
 }

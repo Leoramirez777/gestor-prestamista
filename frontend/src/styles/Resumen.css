@@ -3,6 +3,12 @@
   background: #ffffff;
   padding: 20px 0;
 }
+.metric-icon-circle.teal,
+.metric-icon-circle.dark,
+.metric-icon-circle.indigo,
+.metric-icon-circle.pink {
+  color: white;
+}
 
 .dashboard-header {
   background: white;

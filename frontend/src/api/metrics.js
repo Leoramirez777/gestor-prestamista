@@ -80,3 +80,30 @@ export async function fetchExpectativas(type, startOrDate, end = null) {
     handleApiError(err);
   }
 }
+
+export async function fetchTopClientes(limit = 10) {
+  try {
+    const { data } = await api.get('/api/metrics/top-clientes', { params: { limit } });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function fetchRentabilidad() {
+  try {
+    const { data } = await api.get('/api/metrics/rentabilidad');
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function fetchEvolucion(periodoDias = 30) {
+  try {
+    const { data } = await api.get('/api/metrics/evolucion', { params: { periodo_dias: periodoDias } });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

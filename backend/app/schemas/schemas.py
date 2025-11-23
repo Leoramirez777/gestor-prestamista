@@ -187,6 +187,11 @@ class SummaryMetrics(BaseModel):
     ticket_promedio_pago: float
     clientes_activos: int
     activation_rate: float
+    ingresos_netos: float
+    intereses_cobrados: float
+    ganancias_netas: float
+    total_comisiones_pagadas: float
+    comisiones: dict  # {vendedor, cobrador, total}
 
 class KPIMetrics(BaseModel):
     timestamp: str

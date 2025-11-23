@@ -116,3 +116,24 @@ def metrics_segment(
     sd = datetime.strptime(start_date, '%Y-%m-%d').date() if start_date else None
     ed = datetime.strptime(end_date, '%Y-%m-%d').date() if end_date else None
     return get_segment_metrics(db, dimension, sd, ed)
+
+
+@router.get("/top-clientes")
+def metrics_top_clientes(limit: int = Query(10, ge=1, le=50), db: Session = Depends(get_db)):
+    """Obtiene los top clientes por diferentes métricas."""
+    from app.metrics_service import get_top_clientes
+    return get_top_clientes(db, limit)
+
+
+@router.get("/rentabilidad")
+def metrics_rentabilidad(db: Session = Depends(get_db)):
+    """Calcula métricas de rentabilidad del negocio."""
+    from app.metrics_service import get_rentabilidad
+    return get_rentabilidad(db)
+
+
+@router.get("/evolucion")
+def metrics_evolucion(periodo_dias: int = Query(30, ge=7, le=365), db: Session = Depends(get_db)):
+    """Obtiene la evolución de métricas clave en los últimos N días."""
+    from app.metrics_service import get_evolucion_temporal
+    return get_evolucion_temporal(db, periodo_dias)

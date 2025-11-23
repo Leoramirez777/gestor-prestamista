@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.models import Cliente, Prestamo, Pago, PagoVendedor, PagoCobrador
@@ -45,6 +46,10 @@ def get_summary_metrics(db: Session) -> dict:
     
     # Ingresos netos (recaudado menos comisiones pagadas)
     ingresos_netos = monto_total_recaudado - total_comisiones
+    # Intereses cobrados (ganancia bruta antes de comisiones)
+    intereses_cobrados = monto_total_recaudado - monto_total_prestado
+    # Ganancias netas reales (intereses cobrados menos comisiones)
+    ganancias_netas = intereses_cobrados - total_comisiones
 
     return {
         'timestamp': today.isoformat(),
@@ -68,7 +73,10 @@ def get_summary_metrics(db: Session) -> dict:
             'cobrador': round(total_comisiones_cobrador, 2),
             'total': round(total_comisiones, 2)
         },
-        'ingresos_netos': round(ingresos_netos, 2)
+        'ingresos_netos': round(ingresos_netos, 2),  # Recaudado - comisiones
+        'intereses_cobrados': round(intereses_cobrados, 2),  # Recaudado - capital
+        'ganancias_netas': round(ganancias_netas, 2),  # Intereses - comisiones
+        'total_comisiones_pagadas': round(total_comisiones, 2)
     }
 
 
@@ -212,7 +220,7 @@ def get_daily_simple(db: Session, days: int = 1) -> dict:
     }
 
 
-def get_period_metrics(db: Session, period_type: str, start_date: date, end_date: date = None) -> dict:
+def get_period_metrics(db: Session, period_type: str, start_date: date, end_date: Optional[date] = None) -> dict:
     """Obtiene métricas de un período específico (día, semana o mes)."""
     if end_date is None:
         end_date = start_date
@@ -260,7 +268,7 @@ def get_period_metrics(db: Session, period_type: str, start_date: date, end_date
     }
 
 
-def get_expectativas(db: Session, start_date: date, end_date: date = None) -> dict:
+def get_expectativas(db: Session, start_date: date, end_date: Optional[date] = None) -> dict:
     """Obtiene las expectativas de cobro para un período específico."""
     if end_date is None:
         end_date = start_date
@@ -287,7 +295,7 @@ def get_expectativas(db: Session, start_date: date, end_date: date = None) -> di
     }
 
 
-def get_segment_metrics(db: Session, dimension: str, start_date: date = None, end_date: date = None) -> dict:
+def get_segment_metrics(db: Session, dimension: str, start_date: Optional[date] = None, end_date: Optional[date] = None) -> dict:
     """Agrupa préstamos por dimensión solicitada."""
     query = db.query(Prestamo)
     if start_date and end_date:
@@ -318,9 +326,9 @@ def get_segment_metrics(db: Session, dimension: str, start_date: date = None, en
         return '91+'
 
     def bucket_morosidad(p: Prestamo) -> str:
-        if p.estado == 'pagado':
+        if p.estado == 'pagado':  # type: ignore
             return 'pagado'
-        if p.fecha_vencimiento < today and p.saldo_pendiente > 0:
+        if p.fecha_vencimiento < today and p.saldo_pendiente > 0:  # type: ignore
             return 'vencido'
         return 'al_dia'
 
@@ -330,7 +338,7 @@ def get_segment_metrics(db: Session, dimension: str, start_date: date = None, en
         elif dimension == 'estado':
             key = p.estado or 'desconocido'
         elif dimension == 'tamano':
-            key = bucket_tamano(p.monto)
+            key = bucket_tamano(float(p.monto))  # type: ignore[arg-type]
         elif dimension == 'antiguedad':
             dias = (today - p.fecha_inicio).days
             key = bucket_antiguedad(dias)
@@ -373,4 +381,162 @@ def get_segment_metrics(db: Session, dimension: str, start_date: date = None, en
         'end_date': end_date.isoformat() if end_date else None,
         'total_prestamos': total_prestamos,
         'items': items
+    }
+
+
+def get_top_clientes(db: Session, limit: int = 10) -> dict:
+    """Obtiene los top clientes por diferentes métricas."""
+    # Top por monto total prestado
+    top_por_monto = db.query(
+        Cliente.id,
+        Cliente.nombre,
+        func.sum(Prestamo.monto).label('total_prestado'),
+        func.count(Prestamo.id).label('cantidad_prestamos')
+    ).join(Prestamo).group_by(Cliente.id, Cliente.nombre).order_by(
+        func.sum(Prestamo.monto).desc()
+    ).limit(limit).all()
+
+    # Top por cantidad de préstamos
+    top_por_cantidad = db.query(
+        Cliente.id,
+        Cliente.nombre,
+        func.count(Prestamo.id).label('cantidad_prestamos'),
+        func.sum(Prestamo.monto).label('total_prestado')
+    ).join(Prestamo).group_by(Cliente.id, Cliente.nombre).order_by(
+        func.count(Prestamo.id).desc()
+    ).limit(limit).all()
+
+    # Top por monto pendiente (clientes con más deuda)
+    top_deudores = db.query(
+        Cliente.id,
+        Cliente.nombre,
+        func.sum(Prestamo.saldo_pendiente).label('saldo_pendiente'),
+        func.count(Prestamo.id).label('prestamos_activos')
+    ).join(Prestamo).filter(Prestamo.saldo_pendiente > 0).group_by(
+        Cliente.id, Cliente.nombre
+    ).order_by(func.sum(Prestamo.saldo_pendiente).desc()).limit(limit).all()
+
+    return {
+        'top_por_monto': [
+            {
+                'cliente_id': c.id,
+                'nombre': c.nombre,
+                'total_prestado': round(float(c.total_prestado), 2),
+                'cantidad_prestamos': c.cantidad_prestamos
+            } for c in top_por_monto
+        ],
+        'top_por_cantidad': [
+            {
+                'cliente_id': c.id,
+                'nombre': c.nombre,
+                'cantidad_prestamos': c.cantidad_prestamos,
+                'total_prestado': round(float(c.total_prestado), 2)
+            } for c in top_por_cantidad
+        ],
+        'top_deudores': [
+            {
+                'cliente_id': c.id,
+                'nombre': c.nombre,
+                'saldo_pendiente': round(float(c.saldo_pendiente), 2),
+                'prestamos_activos': c.prestamos_activos
+            } for c in top_deudores
+        ]
+    }
+
+
+def get_rentabilidad(db: Session) -> dict:
+    """Calcula métricas de rentabilidad del negocio."""
+    # Total prestado (capital)
+    capital_invertido = db.query(func.coalesce(func.sum(Prestamo.monto), 0)).scalar() or 0.0
+    
+    # Total recaudado
+    total_recaudado = db.query(func.coalesce(func.sum(Pago.monto), 0)).scalar() or 0.0
+    
+    # Comisiones pagadas
+    comisiones_vendedor = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).scalar() or 0.0
+    comisiones_cobrador = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).scalar() or 0.0
+    total_comisiones = comisiones_vendedor + comisiones_cobrador
+    
+    # Ganancias brutas (intereses cobrados = recaudado - capital)
+    ganancias_brutas = total_recaudado - capital_invertido
+    
+    # Ganancias netas (después de comisiones)
+    ganancias_netas = ganancias_brutas - total_comisiones
+    
+    # ROI (Return on Investment)
+    roi = (ganancias_netas / capital_invertido) if capital_invertido > 0 else 0.0
+    
+    # Margen de ganancia
+    margen = (ganancias_netas / total_recaudado) if total_recaudado > 0 else 0.0
+    
+    # Saldo pendiente por cobrar
+    por_cobrar = db.query(func.coalesce(func.sum(Prestamo.saldo_pendiente), 0)).scalar() or 0.0
+    
+    # Capital en riesgo (prestado pero aún no cobrado completamente)
+    prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
+    capital_en_riesgo = sum(float(p.monto) for p in prestamos_activos)  # type: ignore[arg-type]
+    
+    return {
+        'capital_invertido': round(capital_invertido, 2),
+        'total_recaudado': round(total_recaudado, 2),
+        'ganancias_brutas': round(ganancias_brutas, 2),
+        'total_comisiones': round(total_comisiones, 2),
+        'ganancias_netas': round(ganancias_netas, 2),
+        'roi': round(roi, 4),
+        'roi_porcentaje': round(roi * 100, 2),
+        'margen': round(margen, 4),
+        'margen_porcentaje': round(margen * 100, 2),
+        'por_cobrar': round(por_cobrar, 2),
+        'capital_en_riesgo': round(capital_en_riesgo, 2)
+    }
+
+
+def get_evolucion_temporal(db: Session, periodo_dias: int = 30) -> dict:
+    """Obtiene la evolución de métricas clave en los últimos N días."""
+    from datetime import timedelta
+    today = date.today()
+    start = today - timedelta(days=periodo_dias - 1)
+    
+    # Generar lista de fechas
+    fechas = []
+    current = start
+    while current <= today:
+        fechas.append(current)
+        current += timedelta(days=1)
+    
+    # Datos por día
+    evolucion = []
+    for fecha in fechas:
+        # Préstamos creados ese día
+        prestado = db.query(func.coalesce(func.sum(Prestamo.monto), 0)).filter(
+            func.date(Prestamo.created_at) == fecha
+        ).scalar() or 0.0
+        
+        # Pagos recibidos ese día
+        cobrado = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(
+            Pago.fecha_pago == fecha
+        ).scalar() or 0.0
+        
+        # Cantidad de operaciones
+        num_prestamos = db.query(func.count(Prestamo.id)).filter(
+            func.date(Prestamo.created_at) == fecha
+        ).scalar() or 0
+        
+        num_pagos = db.query(func.count(Pago.id)).filter(
+            Pago.fecha_pago == fecha
+        ).scalar() or 0
+        
+        evolucion.append({
+            'fecha': fecha.isoformat(),
+            'prestado': round(prestado, 2),
+            'cobrado': round(cobrado, 2),
+            'num_prestamos': num_prestamos,
+            'num_pagos': num_pagos
+        })
+    
+    return {
+        'periodo_dias': periodo_dias,
+        'start_date': start.isoformat(),
+        'end_date': today.isoformat(),
+        'evolucion': evolucion
     }

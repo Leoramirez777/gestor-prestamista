@@ -23,7 +23,7 @@ from app.models.models import (
     PagoCobrador, PagoVendedor, MovimientoCaja, CajaCierre
 )
 from app.caja_service import actualizar_totales_cierre
-
+ 
 
 def main():
     db = SessionLocal()
