@@ -3,13 +3,13 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import timedelta, date
 from app.database.database import get_db
-from app.models.models import Prestamo, Cliente, Empleado, PrestamoVendedor, MovimientoCaja
+from app.models.models import Prestamo, Cliente, Empleado, PrestamoVendedor, MovimientoCaja, Usuario
 from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate, Cuota, PrestamoVendedor as PrestamoVendedorSchema
 from app.amortization_service import generar_amortizacion
 from app.caja_service import actualizar_totales_cierre, get_or_create_cierre
+from app.routers.auth import get_current_user
 
 router = APIRouter()
-
 
 @router.get("/preview-vendedor")
 def preview_vendedor(monto: float, tasa_interes: float, porcentaje: float, base: str = "total"):
@@ -27,8 +27,36 @@ def preview_vendedor(monto: float, tasa_interes: float, porcentaje: float, base:
     return {"monto_base": round(monto_base, 2), "monto_comision": round(monto_comision, 2)}
 
 @router.get("/", response_model=List[PrestamoSchema])
-def get_prestamos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Obtener todos los préstamos"""
+def get_prestamos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    """Obtener préstamos según el rol del usuario"""
+    try:
+        # Si es admin, ve todos los préstamos
+        if current_user.role == 'admin':
+            prestamos = db.query(Prestamo).offset(skip).limit(limit).all()
+            return prestamos
+        
+        # Si es vendedor, solo ve préstamos donde está asignado como vendedor
+        if not current_user.empleado_id:
+            return []
+        
+        # Obtener IDs de préstamos donde el usuario está asignado
+        prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(
+            PrestamoVendedor.empleado_id == current_user.empleado_id
+        ).distinct().all()
+        
+        if not prestamos_ids:
+            return []
+        
+        prestamo_ids_list = [p[0] for p in prestamos_ids]
+        
+        prestamos = db.query(Prestamo).filter(
+            Prestamo.id.in_(prestamo_ids_list)
+        ).offset(skip).limit(limit).all()
+        
+        return prestamos
+    except Exception as e:
+        print(f"Error en get_prestamos: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     prestamos = db.query(Prestamo).offset(skip).limit(limit).all()
     return prestamos
 

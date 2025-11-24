@@ -2,16 +2,53 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db
-from app.models.models import Cliente
+from app.models.models import Cliente, Prestamo, Usuario
 from app.schemas.schemas import Cliente as ClienteSchema, ClienteCreate, ClienteUpdate
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
 @router.get("/", response_model=List[ClienteSchema])
-def get_clientes(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Obtener todos los clientes"""
-    clientes = db.query(Cliente).offset(skip).limit(limit).all()
-    return clientes
+def get_clientes(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    """Obtener clientes según el rol del usuario"""
+    try:
+        # Si es admin, ve todos los clientes
+        if current_user.role == 'admin':
+            clientes = db.query(Cliente).offset(skip).limit(limit).all()
+            return clientes
+        
+        # Si es vendedor o cobrador, solo ve clientes con préstamos donde está asignado
+        if not current_user.empleado_id:
+            return []
+        
+        # Importar PrestamoVendedor
+        from app.models.models import PrestamoVendedor
+        
+        # Obtener IDs de préstamos donde el usuario está asignado como vendedor
+        prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(
+            PrestamoVendedor.empleado_id == current_user.empleado_id
+        ).distinct().all()
+        
+        if not prestamos_ids:
+            return []
+        
+        prestamo_ids_list = [p[0] for p in prestamos_ids]
+        
+        # Obtener clientes de esos préstamos
+        clientes_ids = db.query(Prestamo.cliente_id).filter(
+            Prestamo.id.in_(prestamo_ids_list)
+        ).distinct().all()
+        
+        cliente_ids_list = [c[0] for c in clientes_ids]
+        
+        if not cliente_ids_list:
+            return []
+        
+        clientes = db.query(Cliente).filter(Cliente.id.in_(cliente_ids_list)).offset(skip).limit(limit).all()
+        return clientes
+    except Exception as e:
+        print(f"Error en get_clientes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{cliente_id}", response_model=ClienteSchema)
 def get_cliente(cliente_id: int, db: Session = Depends(get_db)):

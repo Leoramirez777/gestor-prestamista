@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List
 from datetime import date
 from app.database.database import get_db
-from app.models.models import Pago, Prestamo, PagoCobrador, PagoVendedor, PrestamoVendedor, Empleado, MovimientoCaja, Cliente
+from app.models.models import Pago, Prestamo, PagoCobrador, PagoVendedor, PrestamoVendedor, Empleado, MovimientoCaja, Cliente, Usuario
 from app.schemas.schemas import Pago as PagoSchema, PagoCreate, PagoCobrador as PagoCobradorSchema, PagoVendedor as PagoVendedorSchema
 from app.caja_service import actualizar_totales_cierre, get_or_create_cierre
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
@@ -26,10 +27,40 @@ def preview_cobrador(monto: float, porcentaje: float):
     return {"monto_comision": monto_comision}
 
 @router.get("/", response_model=List[PagoSchema])
-def get_pagos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Obtener todos los pagos"""
-    pagos = db.query(Pago).offset(skip).limit(limit).all()
-    return pagos
+def get_pagos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    """Obtener pagos según el rol del usuario"""
+    try:
+        # Si es admin, ve todos los pagos
+        if current_user.role == 'admin':
+            pagos = db.query(Pago).offset(skip).limit(limit).all()
+            return pagos
+        
+        # Si es vendedor o cobrador, solo ve pagos de préstamos donde está asignado
+        if not current_user.empleado_id:
+            return []
+        
+        # Importar PrestamoVendedor
+        from app.models.models import PrestamoVendedor
+        
+        # Obtener IDs de préstamos donde el usuario está asignado
+        prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(
+            PrestamoVendedor.empleado_id == current_user.empleado_id
+        ).distinct().all()
+        
+        if not prestamos_ids:
+            return []
+        
+        prestamo_ids_list = [p[0] for p in prestamos_ids]
+        
+        # Filtrar pagos de esos préstamos
+        pagos = db.query(Pago).filter(
+            Pago.prestamo_id.in_(prestamo_ids_list)
+        ).offset(skip).limit(limit).all()
+        
+        return pagos
+    except Exception as e:
+        print(f"Error en get_pagos: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{pago_id}", response_model=PagoSchema)
 def get_pago(pago_id: int, db: Session = Depends(get_db)):

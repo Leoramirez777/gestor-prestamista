@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import date, datetime, timedelta
 from calendar import monthrange
 from app.database.database import get_db
+from app.models.models import Usuario
 from app.metrics_service import (
     get_summary_metrics,
     get_due_today,
@@ -14,14 +15,24 @@ from app.metrics_service import (
     get_segment_metrics
 )
 from app.schemas.schemas import SummaryMetrics, KPIMetrics, DailySimpleMetrics, SegmentResponse
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
 @router.get("/summary", response_model=SummaryMetrics)
-def metrics_summary(db: Session = Depends(get_db)):
+def metrics_summary(db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
     """Obtener métricas financieras resumidas del sistema."""
-    data = get_summary_metrics(db)
-    return data
+    try:
+        # Si es admin, muestra todo
+        empleado_id = None
+        if current_user.role != 'admin':
+            empleado_id = current_user.empleado_id
+        
+        data = get_summary_metrics(db, empleado_id)
+        return data
+    except Exception as e:
+        print(f"Error en metrics_summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/due-today")

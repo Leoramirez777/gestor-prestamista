@@ -2,22 +2,43 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.models import Cliente, Prestamo, Pago, PagoVendedor, PagoCobrador
-from app.amortization_service import generar_amortizacion
+from app.models.models import Cliente, Prestamo, Pago, PagoVendedor, PagoCobrador, PrestamoVendedor
 
 
-def get_summary_metrics(db: Session) -> dict:
+def get_summary_metrics(db: Session, empleado_id: Optional[int] = None) -> dict:
     today = date.today()
 
-    total_clientes = db.query(func.count(Cliente.id)).scalar() or 0
-    total_prestamos = db.query(func.count(Prestamo.id)).scalar() or 0
-    total_pagos = db.query(func.count(Pago.id)).scalar() or 0
+    # Si hay empleado_id, filtrar por vendedor usando PrestamoVendedor
+    prestamos_query = db.query(Prestamo)
+    pagos_query = db.query(Pago)
+    
+    if empleado_id:
+        # Obtener IDs de préstamos del vendedor
+        prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(
+            PrestamoVendedor.empleado_id == empleado_id
+        ).distinct().all()
+        prestamo_ids_list = [p[0] for p in prestamos_ids]
+        
+        if prestamo_ids_list:
+            prestamos_query = prestamos_query.filter(Prestamo.id.in_(prestamo_ids_list))
+            pagos_query = pagos_query.filter(Pago.prestamo_id.in_(prestamo_ids_list))
+            
+            # Clientes únicos de esos préstamos
+            cliente_ids = db.query(Prestamo.cliente_id).filter(Prestamo.id.in_(prestamo_ids_list)).distinct().all()
+            total_clientes = len(cliente_ids)
+        else:
+            total_clientes = 0
+    else:
+        total_clientes = db.query(func.count(Cliente.id)).scalar() or 0
 
-    monto_total_recaudado = db.query(func.coalesce(func.sum(Pago.monto), 0)).scalar() or 0.0
-    saldo_pendiente_total = db.query(func.coalesce(func.sum(Prestamo.saldo_pendiente), 0)).scalar() or 0.0
+    total_prestamos = prestamos_query.count() or 0
+    total_pagos = pagos_query.count() or 0
 
-    # Calcular prestado, esperado e intereses iterando todos los préstamos
-    todos_prestamos = db.query(Prestamo).all()
+    monto_total_recaudado = pagos_query.with_entities(func.coalesce(func.sum(Pago.monto), 0)).scalar() or 0.0
+    saldo_pendiente_total = prestamos_query.with_entities(func.coalesce(func.sum(Prestamo.saldo_pendiente), 0)).scalar() or 0.0
+
+    # Calcular prestado, esperado e intereses iterando préstamos filtrados
+    todos_prestamos = prestamos_query.all()
     monto_total_prestado = 0.0
     monto_total_esperado = 0.0
     intereses_generados = 0.0
@@ -32,18 +53,34 @@ def get_summary_metrics(db: Session) -> dict:
         monto_total_esperado += total
         intereses_generados += interes
 
-    prestamos_activos = db.query(func.count(Prestamo.id)).filter(Prestamo.saldo_pendiente > 0, Prestamo.estado == 'activo').scalar() or 0
-    prestamos_vencidos = db.query(func.count(Prestamo.id)).filter(
+    prestamos_activos_query = prestamos_query.filter(Prestamo.saldo_pendiente > 0, Prestamo.estado == 'activo')
+    prestamos_activos = prestamos_activos_query.count() or 0
+    
+    prestamos_vencidos_query = prestamos_query.filter(
         Prestamo.saldo_pendiente > 0,
         Prestamo.fecha_vencimiento < today
-    ).scalar() or 0
+    )
+    prestamos_vencidos = prestamos_vencidos_query.count() or 0
 
-    pagos_hoy = db.query(func.count(Pago.id)).filter(Pago.fecha_pago == today).scalar() or 0
+    pagos_hoy_query = pagos_query.filter(Pago.fecha_pago == today)
+    pagos_hoy = pagos_hoy_query.count() or 0
 
     average_loan_size = (monto_total_prestado / total_prestamos) if total_prestamos > 0 else 0.0
     ticket_promedio_pago = (monto_total_recaudado / total_pagos) if total_pagos > 0 else 0.0
 
-    clientes_activos = db.query(func.count(func.distinct(Prestamo.cliente_id))).filter(Prestamo.saldo_pendiente > 0).scalar() or 0
+    # Clientes activos: count distinct de cliente_id donde saldo > 0
+    if empleado_id:
+        if prestamo_ids_list:
+            clientes_activos = db.query(func.count(func.distinct(Prestamo.cliente_id))).filter(
+                Prestamo.saldo_pendiente > 0,
+                Prestamo.id.in_(prestamo_ids_list)
+            ).scalar() or 0
+        else:
+            clientes_activos = 0
+    else:
+        clientes_activos = db.query(func.count(func.distinct(Prestamo.cliente_id))).filter(
+            Prestamo.saldo_pendiente > 0
+        ).scalar() or 0
     
     # Calcular tasa de activación (clientes con préstamos activos / total clientes)
     activation_rate = (clientes_activos / total_clientes) if total_clientes > 0 else 0.0
