@@ -35,6 +35,9 @@ function Resumen() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedWeek, setSelectedWeek] = useState(getWeekRange(new Date()));
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedDateExp, setSelectedDateExp] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedWeekExp, setSelectedWeekExp] = useState(getWeekRange(new Date()));
+  const [selectedMonthExp, setSelectedMonthExp] = useState(new Date().toISOString().slice(0, 7));
   const [summary, setSummary] = useState({});
   const [periodData, setPeriodData] = useState({});
   const [expectativas, setExpectativas] = useState({});
@@ -88,9 +91,9 @@ function Resumen() {
   const loadExpectativas = async () => {
     try {
       let data;
-      if (expectativasTab === 'fecha') data = await fetchExpectativas('date', selectedDate);
-      else if (expectativasTab === 'semana') data = await fetchExpectativas('week', selectedWeek.start, selectedWeek.end);
-      else if (expectativasTab === 'mes') data = await fetchExpectativas('month', selectedMonth);
+      if (expectativasTab === 'fecha') data = await fetchExpectativas('date', selectedDateExp);
+      else if (expectativasTab === 'semana') data = await fetchExpectativas('week', selectedWeekExp.start, selectedWeekExp.end);
+      else if (expectativasTab === 'mes') data = await fetchExpectativas('month', selectedMonthExp);
       if (data) setExpectativas(data);
     } catch (e) { console.error(e); }
   };
@@ -128,8 +131,8 @@ function Resumen() {
         <div className="metric-row mt-3">
           <div className="metric-cell"><div className="metric-icon-circle teal" style={{backgroundColor:'#20c997'}}><i className="fas fa-receipt"></i></div><div className="metric-info"><span className="metric-label">Comisiones Pagadas</span><span className="metric-value">{formatCurrency(summary.total_comisiones_pagadas || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle dark" style={{backgroundColor:'#343a40'}}><i className="fas fa-coins"></i></div><div className="metric-info"><span className="metric-label">Ganancias Netas</span><span className="metric-value">{formatCurrency(summary.ganancias_netas || 0)}</span></div></div>
-          <div className="metric-cell"><div className="metric-icon-circle indigo" style={{backgroundColor:'#6610f2'}}><i className="fas fa-chart-pie"></i></div><div className="metric-info"><span className="metric-label">Intereses Cobrados</span><span className="metric-value">{formatCurrency(summary.intereses_cobrados || 0)}</span></div></div>
-          <div className="metric-cell"><div className="metric-icon-circle pink" style={{backgroundColor:'#d63384'}}><i className="fas fa-handshake"></i></div><div className="metric-info"><span className="metric-label">Comisión Vendedor</span><span className="metric-value">{formatCurrency(summary.comisiones?.vendedor || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle orange" style={{backgroundColor:'#fd7e14'}}><i className="fas fa-chart-line"></i></div><div className="metric-info"><span className="metric-label">Intereses Generados</span><span className="metric-value">{formatCurrency(summary.intereses_generados || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle blue" style={{backgroundColor:'#0d6efd'}}><i className="fas fa-percentage"></i></div><div className="metric-info"><span className="metric-label">Tasa Cobro</span><span className="metric-value">{percentDisplay(summary.tasa_cobro || 0)}</span></div></div>
         </div>
       </div>
       <div className="section-header mb-3">
@@ -142,6 +145,8 @@ function Resumen() {
               <button className={`btn btn-sm ${resumenTab === 'mensual' ? 'btn-primary' : 'btn-outline-primary'}`} onClick={() => setResumenTab('mensual')}><i className="fas fa-calendar me-1"></i>Mensual</button>
             </div>
             {resumenTab === 'diario' && (<input type="date" className="form-control form-control-sm" style={{maxWidth:'160px'}} value={selectedDate} onChange={e=>setSelectedDate(e.target.value)} />)}
+            {resumenTab === 'semanal' && (<div className="d-flex gap-2"><input type="date" className="form-control form-control-sm" style={{maxWidth:'140px'}} placeholder="Inicio" value={selectedWeek.start} onChange={e=>setSelectedWeek({...selectedWeek, start: e.target.value})} /><input type="date" className="form-control form-control-sm" style={{maxWidth:'140px'}} placeholder="Fin" value={selectedWeek.end} onChange={e=>setSelectedWeek({...selectedWeek, end: e.target.value})} /></div>)}
+            {resumenTab === 'mensual' && (<input type="month" className="form-control form-control-sm" style={{maxWidth:'160px'}} value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)} />)}
           </div>
         </div>
       </div>
@@ -149,8 +154,13 @@ function Resumen() {
         <div className="metric-row">
           <div className="metric-cell"><div className="metric-icon-circle yellow"><i className="fas fa-file-invoice-dollar"></i></div><div className="metric-info"><span className="metric-label">Prestado</span><span className="metric-value">{formatCurrency(periodData.prestado || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle green"><i className="fas fa-layer-group"></i></div><div className="metric-info"><span className="metric-label">Prestado Con Intereses</span><span className="metric-value">{formatCurrency(periodData.prestado_con_intereses || 0)}</span></div></div>
-          <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-hourglass-half"></i></div><div className="metric-info"><span className="metric-label">Por Cobrar</span><span className="metric-value">{formatCurrency(periodData.por_cobrar || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle purple"><i className="fas fa-cash-register"></i></div><div className="metric-info"><span className="metric-label">Cobrado</span><span className="metric-value">{formatCurrency(periodData.cobrado || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle teal" style={{backgroundColor:'#20c997'}}><i className="fas fa-receipt"></i></div><div className="metric-info"><span className="metric-label">Comisiones Pagadas</span><span className="metric-value">{formatCurrency(periodData.comisiones_pagadas || 0)}</span></div></div>
+        </div>
+        <div className="metric-row mt-3">
+          <div className="metric-cell"><div className="metric-icon-circle orange"><i className="fas fa-chart-line"></i></div><div className="metric-info"><span className="metric-label">Intereses Generados</span><span className="metric-value">{formatCurrency(periodData.intereses_generados || ((periodData.prestado_con_intereses || 0) - (periodData.prestado || 0)))}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-percentage"></i></div><div className="metric-info"><span className="metric-label">Tasa Cobro</span><span className="metric-value">{periodData.prestado_con_intereses > 0 ? ((periodData.cobrado || 0) / periodData.prestado_con_intereses * 100).toFixed(1) + '%' : '0%'}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-balance-scale"></i></div><div className="metric-info"><span className="metric-label">Ganancias Netas</span><span className="metric-value">{formatCurrency((periodData.ganancias_netas !== undefined ? periodData.ganancias_netas : (periodData.cobrado || 0) - (periodData.comisiones_pagadas || 0)))}</span></div></div>
         </div>
       </div>
       <div className="section-header mb-3">
@@ -162,13 +172,23 @@ function Resumen() {
               <button className={`btn btn-sm ${expectativasTab === 'semana' ? 'btn-info' : 'btn-outline-info'}`} onClick={() => setExpectativasTab('semana')}><i className="fas fa-calendar-week me-1"></i>Por Semana</button>
               <button className={`btn btn-sm ${expectativasTab === 'mes' ? 'btn-info' : 'btn-outline-info'}`} onClick={() => setExpectativasTab('mes')}><i className="fas fa-calendar me-1"></i>Por Mes</button>
             </div>
+            {expectativasTab === 'fecha' && (<input type="date" className="form-control form-control-sm" style={{maxWidth:'160px'}} value={selectedDateExp} onChange={e=>setSelectedDateExp(e.target.value)} />)}
+            {expectativasTab === 'semana' && (<div className="d-flex gap-2"><input type="date" className="form-control form-control-sm" style={{maxWidth:'140px'}} placeholder="Inicio" value={selectedWeekExp.start} onChange={e=>setSelectedWeekExp({...selectedWeekExp, start: e.target.value})} /><input type="date" className="form-control form-control-sm" style={{maxWidth:'140px'}} placeholder="Fin" value={selectedWeekExp.end} onChange={e=>setSelectedWeekExp({...selectedWeekExp, end: e.target.value})} /></div>)}
+            {expectativasTab === 'mes' && (<input type="month" className="form-control form-control-sm" style={{maxWidth:'160px'}} value={selectedMonthExp} onChange={e=>setSelectedMonthExp(e.target.value)} />)}
+            <div className="invisible">
+            </div>
           </div>
         </div>
       </div>
       <div className="metrics-grid mb-4">
-        <div className="metric-row two-cols">
+        <div className="metric-row">
           <div className="metric-cell"><div className="metric-icon-circle orange"><i className="fas fa-dollar-sign"></i></div><div className="metric-info"><span className="metric-label">Monto Esperado</span><span className="metric-value">{formatCurrency(expectativas.monto_esperado || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-list-ol"></i></div><div className="metric-info"><span className="metric-label">Cantidad de Cuotas</span><span className="metric-value">{expectativas.cantidad_cuotas || 0}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle green"><i className="fas fa-calculator"></i></div><div className="metric-info"><span className="metric-label">Promedio por Cuota</span><span className="metric-value">{expectativas.cantidad_cuotas > 0 ? formatCurrency((expectativas.monto_esperado || 0) / expectativas.cantidad_cuotas) : formatCurrency(0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle purple"><i className="fas fa-calendar-check"></i></div><div className="metric-info"><span className="metric-label">Período</span><span className="metric-value text-uppercase" style={{fontSize:'0.9rem'}}>{expectativasTab === 'fecha' ? 'Diario' : expectativasTab === 'semana' ? 'Semanal' : 'Mensual'}</span></div></div>
+        </div>
+        <div className="metric-row mt-3">
+          <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-hand-holding-usd"></i></div><div className="metric-info"><span className="metric-label">Comisiones Esperadas</span><span className="metric-value">{formatCurrency(expectativas.comisiones_esperadas || 0)}</span></div></div>
         </div>
       </div>
     </>
@@ -177,21 +197,56 @@ function Resumen() {
   const renderRentabilidadTab = () => (
     <>
       <div className="section-header mb-3"><h5 className="section-title mb-0"><i className="fas fa-chart-line me-2"></i>Análisis de Rentabilidad</h5></div>
+      
+      {/* Métricas Principales */}
       <div className="row g-4 mb-4">
-        <div className="col-md-4"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle green mx-auto mb-3" style={{width:'80px',height:'80px'}}><i className="fas fa-percentage" style={{fontSize:'2rem'}}></i></div><h3 className="text-success mb-2">{rentabilidad.roi_porcentaje?.toFixed(2) || 0}%</h3><p className="text-muted mb-0">ROI (Retorno de Inversión)</p><small className="text-muted">Rendimiento total del capital invertido</small></div></div></div>
-        <div className="col-md-4"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle blue mx-auto mb-3" style={{width:'80px',height:'80px'}}><i className="fas fa-hand-holding-usd" style={{fontSize:'2rem'}}></i></div><h3 className="text-primary mb-2">{formatCurrency(rentabilidad.ganancias_netas || 0)}</h3><p className="text-muted mb-0">Ganancias Netas</p><small className="text-muted">Después de comisiones</small></div></div></div>
-        <div className="col-md-4"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle purple mx-auto mb-3" style={{width:'80px',height:'80px'}}><i className="fas fa-chart-pie" style={{fontSize:'2rem'}}></i></div><h3 className="text-purple mb-2">{rentabilidad.margen_porcentaje?.toFixed(2) || 0}%</h3><p className="text-muted mb-0">Margen de Ganancia</p><small className="text-muted">Sobre el total recaudado</small></div></div></div>
+        <div className="col-md-3"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle green mx-auto mb-3" style={{width:'70px',height:'70px'}}><i className="fas fa-percentage" style={{fontSize:'1.8rem'}}></i></div><h3 className="text-success mb-2">{rentabilidad.roi_porcentaje?.toFixed(2) || 0}%</h3><p className="text-muted mb-0 small">ROI</p></div></div></div>
+        <div className="col-md-3"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle blue mx-auto mb-3" style={{width:'70px',height:'70px'}}><i className="fas fa-hand-holding-usd" style={{fontSize:'1.8rem'}}></i></div><h3 className="text-primary mb-2">{formatCurrency(rentabilidad.ganancias_netas || 0)}</h3><p className="text-muted mb-0 small">Ganancias Netas</p></div></div></div>
+        <div className="col-md-3"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle purple mx-auto mb-3" style={{width:'70px',height:'70px'}}><i className="fas fa-chart-pie" style={{fontSize:'1.8rem'}}></i></div><h3 className="text-purple mb-2">{rentabilidad.margen_porcentaje?.toFixed(2) || 0}%</h3><p className="text-muted mb-0 small">Margen</p></div></div></div>
+        <div className="col-md-3"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle orange mx-auto mb-3" style={{width:'70px',height:'70px'}}><i className="fas fa-sync-alt" style={{fontSize:'1.8rem'}}></i></div><h3 className="text-warning mb-2">{rentabilidad.tasa_recuperacion_porcentaje?.toFixed(2) || 0}%</h3><p className="text-muted mb-0 small">Tasa Recuperación</p></div></div></div>
       </div>
-      <div className="metrics-grid">
+
+      {/* Capital y Recuperación */}
+      <div className="section-header mb-3"><h6 className="mb-0"><i className="fas fa-wallet me-2"></i>Capital y Recuperación</h6></div>
+      <div className="metrics-grid mb-4">
         <div className="metric-row">
           <div className="metric-cell"><div className="metric-icon-circle yellow"><i className="fas fa-coins"></i></div><div className="metric-info"><span className="metric-label">Capital Invertido</span><span className="metric-value">{formatCurrency(rentabilidad.capital_invertido || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle green"><i className="fas fa-check-circle"></i></div><div className="metric-info"><span className="metric-label">Capital Recuperado</span><span className="metric-value">{formatCurrency(rentabilidad.capital_recuperado || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle gray"><i className="fas fa-exclamation-triangle"></i></div><div className="metric-info"><span className="metric-label">Capital en Riesgo</span><span className="metric-value">{formatCurrency(rentabilidad.capital_en_riesgo || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-clock"></i></div><div className="metric-info"><span className="metric-label">Tiempo Promedio Recuperación</span><span className="metric-value">{rentabilidad.tiempo_promedio_recuperacion?.toFixed(1) || 0} días</span></div></div>
+        </div>
+      </div>
+
+      {/* Ingresos y Ganancias */}
+      <div className="section-header mb-3"><h6 className="mb-0"><i className="fas fa-chart-line me-2"></i>Ingresos y Ganancias</h6></div>
+      <div className="metrics-grid mb-4">
+        <div className="metric-row">
           <div className="metric-cell"><div className="metric-icon-circle green"><i className="fas fa-money-bill-wave"></i></div><div className="metric-info"><span className="metric-label">Total Recaudado</span><span className="metric-value">{formatCurrency(rentabilidad.total_recaudado || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-chart-line"></i></div><div className="metric-info"><span className="metric-label">Ganancias Brutas</span><span className="metric-value">{formatCurrency(rentabilidad.ganancias_brutas || 0)}</span></div></div>
-          <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-receipt"></i></div><div className="metric-info"><span className="metric-label">Total Comisiones</span><span className="metric-value">{formatCurrency(rentabilidad.total_comisiones || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle purple"><i className="fas fa-percentage"></i></div><div className="metric-info"><span className="metric-label">Intereses Generados</span><span className="metric-value">{formatCurrency(rentabilidad.intereses_generados || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle orange"><i className="fas fa-hourglass-half"></i></div><div className="metric-info"><span className="metric-label">Intereses Pendientes</span><span className="metric-value">{formatCurrency(rentabilidad.intereses_pendientes || 0)}</span></div></div>
         </div>
-        <div className="metric-row mt-3">
+      </div>
+
+      {/* Eficiencia y Costos */}
+      <div className="section-header mb-3"><h6 className="mb-0"><i className="fas fa-tachometer-alt me-2"></i>Eficiencia y Costos</h6></div>
+      <div className="metrics-grid mb-4">
+        <div className="metric-row">
+          <div className="metric-cell"><div className="metric-icon-circle teal" style={{backgroundColor:'#20c997'}}><i className="fas fa-bullseye"></i></div><div className="metric-info"><span className="metric-label">Eficiencia de Cobro</span><span className="metric-value">{rentabilidad.eficiencia_cobro_porcentaje?.toFixed(2) || 0}%</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-receipt"></i></div><div className="metric-info"><span className="metric-label">Total Comisiones</span><span className="metric-value">{formatCurrency(rentabilidad.total_comisiones || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle pink" style={{backgroundColor:'#e83e8c'}}><i className="fas fa-balance-scale"></i></div><div className="metric-info"><span className="metric-label">Ratio Comisiones</span><span className="metric-value">{rentabilidad.ratio_comisiones_porcentaje?.toFixed(2) || 0}%</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle indigo" style={{backgroundColor:'#6610f2'}}><i className="fas fa-user-tag"></i></div><div className="metric-info"><span className="metric-label">Costo por Cliente</span><span className="metric-value">{formatCurrency(rentabilidad.costo_adquisicion || 0)}</span></div></div>
+        </div>
+      </div>
+
+      {/* Análisis de Cartera */}
+      <div className="section-header mb-3"><h6 className="mb-0"><i className="fas fa-briefcase me-2"></i>Análisis de Cartera</h6></div>
+      <div className="metrics-grid mb-4">
+        <div className="metric-row">
           <div className="metric-cell"><div className="metric-icon-circle orange"><i className="fas fa-hourglass-half"></i></div><div className="metric-info"><span className="metric-label">Por Cobrar</span><span className="metric-value">{formatCurrency(rentabilidad.por_cobrar || 0)}</span></div></div>
-          <div className="metric-cell"><div className="metric-icon-circle gray"><i className="fas fa-exclamation-triangle"></i></div><div className="metric-info"><span className="metric-label">Capital en Riesgo</span><span className="metric-value">{formatCurrency(rentabilidad.capital_en_riesgo || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-calculator"></i></div><div className="metric-info"><span className="metric-label">Valor Promedio Préstamo</span><span className="metric-value">{formatCurrency(rentabilidad.valor_promedio_prestamo || 0)}</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-exclamation-circle"></i></div><div className="metric-info"><span className="metric-label">Tasa de Morosidad</span><span className="metric-value">{rentabilidad.tasa_morosidad_porcentaje?.toFixed(2) || 0}%</span></div></div>
+          <div className="metric-cell"><div className="metric-icon-circle gray"><i className="fas fa-file-invoice"></i></div><div className="metric-info"><span className="metric-label">Préstamos Vencidos</span><span className="metric-value">{rentabilidad.prestamos_vencidos || 0} / {rentabilidad.total_prestamos || 0}</span></div></div>
         </div>
       </div>
     </>
@@ -233,20 +288,73 @@ function Resumen() {
   };
 
   // Explicaciones de cada métrica
-  const explicaciones = [
-    { label: "Prestado", desc: "Monto total de dinero prestado a los clientes." },
-    { label: "Prestado Con Intereses", desc: "Monto total esperado incluyendo intereses generados." },
-    { label: "Por Cobrar", desc: "Saldo pendiente que aún no ha sido cobrado." },
-    { label: "Cobrado", desc: "Monto total que ya ha sido cobrado de los préstamos." },
-    { label: "Clientes Activos", desc: "Cantidad de clientes con préstamos activos." },
-    { label: "Tasa de Activación", desc: "Porcentaje de clientes que han tomado préstamos respecto al total." },
-    { label: "Préstamos Vencidos", desc: "Cantidad de préstamos que han superado su fecha de vencimiento." },
-    { label: "Préstamo Promedio", desc: "Monto promedio de los préstamos otorgados." },
-    { label: "Comisiones Pagadas", desc: "Total de comisiones pagadas por la gestión de préstamos." },
-    { label: "Ganancias Netas", desc: "Ganancia total después de descontar comisiones y costos." },
-    { label: "Intereses Cobrados", desc: "Monto total de intereses efectivamente cobrados." },
-    { label: "Comisión Vendedor", desc: "Comisiones pagadas a vendedores por préstamos gestionados." }
-  ];
+  const getExplicaciones = () => {
+    switch (activeTab) {
+      case 'resumen':
+        return [
+          { label: "Prestado", desc: "Monto total prestado (capital entregado)." },
+          { label: "Prestado Con Intereses", desc: "Capital más intereses pactados (sin penalizaciones de mora)." },
+          { label: "Por Cobrar", desc: "Saldo pendiente que aún no ha sido recuperado." },
+          { label: "Cobrado", desc: "Monto total ya recuperado de los préstamos." },
+          { label: "Clientes Activos", desc: "Cantidad de clientes con préstamos que no han sido totalmente cobrados." },
+          { label: "Tasa de Activación", desc: "Porcentaje de clientes que han tomado préstamos respecto al total." },
+          { label: "Préstamos Vencidos", desc: "Préstamos cuyo plazo terminó y aún tienen saldo pendiente." },
+          { label: "Préstamo Promedio", desc: "Promedio del capital de cada préstamo." },
+          { label: "Comisiones Pagadas", desc: "Total de comisiones desembolsadas (vendedor/cobrador)." },
+          { label: "Intereses Generados", desc: "Diferencia entre monto pactado (monto_total) y capital (monto) sin incluir intereses de mora." },
+          { label: "Tasa Cobro", desc: "Porcentaje cobrado respecto al total pactado (cobrado / prestado con intereses)." },
+          { label: "Ganancias Netas", desc: "Cobrado menos comisiones pagadas (no incluye penalizaciones de mora)." },
+          { label: "Monto Esperado", desc: "Total de cuotas programadas para cobrar en el período." },
+          { label: "Cantidad de Cuotas", desc: "Número de cuotas que vencen en el período." },
+          { label: "Promedio por Cuota", desc: "Promedio del monto de cada cuota en el período." }
+        ];
+      case 'rentabilidad':
+        return [
+          { label: "ROI (Retorno de Inversión)", desc: "Porcentaje de ganancia sobre el capital invertido. Fórmula: (Ganancias Netas / Capital Invertido) × 100." },
+          { label: "Ganancias Netas", desc: "Total recaudado menos las comisiones pagadas a vendedores y cobradores." },
+          { label: "Margen de Ganancia", desc: "Porcentaje de ganancia sobre el total recaudado. Fórmula: (Ganancias Netas / Total Recaudado) × 100." },
+          { label: "Tasa de Recuperación", desc: "Porcentaje del capital invertido que ya has recuperado. Fórmula: (Total Recaudado / Capital Invertido) × 100." },
+          { label: "Capital Invertido", desc: "Suma total del dinero prestado (capital) a todos los clientes." },
+          { label: "Capital Recuperado", desc: "Parte del capital invertido que ya ha regresado." },
+          { label: "Capital en Riesgo", desc: "Monto del capital que aún no ha sido recuperado de los préstamos activos." },
+          { label: "Tiempo Promedio Recuperación", desc: "Cantidad promedio de días que tardas en recuperar completamente un préstamo." },
+          { label: "Total Recaudado", desc: "Suma de todos los pagos recibidos de los clientes." },
+          { label: "Ganancias Brutas", desc: "Total recaudado (igual que Total Recaudado, representa los ingresos antes de comisiones)." },
+          { label: "Intereses Generados", desc: "Total de intereses pactados en todos los préstamos (sin mora)." },
+          { label: "Intereses Pendientes", desc: "Intereses que aún faltan por cobrar de los préstamos activos." },
+          { label: "Eficiencia de Cobro", desc: "Porcentaje de lo que has cobrado vs lo que deberías cobrar (capital + intereses). Fórmula: (Total Recaudado / Monto Total Esperado) × 100." },
+          { label: "Total Comisiones", desc: "Suma de todas las comisiones pagadas a vendedores y cobradores." },
+          { label: "Ratio Comisiones", desc: "Porcentaje que representan las comisiones sobre las ganancias brutas. Fórmula: (Total Comisiones / Ganancias Brutas) × 100." },
+          { label: "Costo por Cliente", desc: "Promedio de comisiones pagadas por cada cliente activo. Útil para calcular el costo de adquisición." },
+          { label: "Por Cobrar", desc: "Saldo pendiente total de todos los préstamos activos." },
+          { label: "Valor Promedio Préstamo", desc: "Promedio del capital de cada préstamo otorgado." },
+          { label: "Tasa de Morosidad", desc: "Porcentaje de préstamos vencidos sobre el total de préstamos. Indica el nivel de riesgo." },
+          { label: "Préstamos Vencidos", desc: "Cantidad de préstamos que superaron su fecha de vencimiento y tienen saldo pendiente." }
+        ];
+      case 'clientes':
+        return [
+          { label: "Por Monto Prestado", desc: "Clientes ordenados por el capital total que se les ha prestado." },
+          { label: "Por Recaudación", desc: "Clientes ordenados por el total de dinero que han pagado." },
+          { label: "Por Saldo Pendiente", desc: "Clientes ordenados por el saldo que aún deben." },
+          { label: "Por Cantidad de Préstamos", desc: "Clientes ordenados por cuántos préstamos han solicitado." },
+          { label: "Cliente", desc: "Nombre completo del cliente." },
+          { label: "Valor", desc: "Monto correspondiente según la métrica seleccionada." }
+        ];
+      case 'tendencias':
+        return [
+          { label: "Período de Análisis", desc: "Rango de días para visualizar la evolución (7, 30, 90 o 365 días)." },
+          { label: "Prestado", desc: "Evolución del capital prestado por día." },
+          { label: "Cobrado", desc: "Evolución del dinero recaudado por día." },
+          { label: "Préstamos Activos", desc: "Cantidad de préstamos con saldo pendiente en cada fecha." },
+          { label: "Tasa de Cobro", desc: "Porcentaje de recuperación diaria: (Cobrado / Prestado) × 100." },
+          { label: "Tendencia", desc: "Dirección general de cada métrica (ascendente, descendente o estable)." }
+        ];
+      default:
+        return [];
+    }
+  };
+  
+  const explicaciones = getExplicaciones();
 
   return (
     <div className="resumen-container">

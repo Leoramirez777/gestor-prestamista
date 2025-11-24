@@ -182,16 +182,15 @@ class SummaryMetrics(BaseModel):
     prestamos_activos: int
     prestamos_vencidos: int
     pagos_hoy: int
-    tasa_recaudo: float
     average_loan_size: float
     ticket_promedio_pago: float
     clientes_activos: int
     activation_rate: float
-    ingresos_netos: float
-    intereses_cobrados: float
     ganancias_netas: float
     total_comisiones_pagadas: float
     comisiones: dict  # {vendedor, cobrador, total}
+    intereses_generados: float
+    tasa_cobro: float | None = None  # ratio cobrado / esperado (0-1)
 
 class KPIMetrics(BaseModel):
     timestamp: str
@@ -199,7 +198,6 @@ class KPIMetrics(BaseModel):
     total_prestamos: int
     monto_total_prestado: float
     monto_total_recaudado: float
-    monto_total_esperado: float
     saldo_pendiente_total: float
     prestamos_activos: int
     prestamos_vencidos: int
@@ -207,7 +205,6 @@ class KPIMetrics(BaseModel):
     monto_esperado_hoy: float
     recaudado_hoy_monto: float
     cumplimiento_hoy_pct: float
-    tasa_recaudo: float
     average_loan_size: float
     ticket_promedio_pago: float
     clientes_activos: int
@@ -216,7 +213,6 @@ class KPIMetrics(BaseModel):
 class DailySimpleMetrics(BaseModel):
     fecha: str
     prestado_hoy: float
-    prestado_con_intereses_hoy: float
     por_cobrar_hoy: float
     cobrado_hoy: float
 

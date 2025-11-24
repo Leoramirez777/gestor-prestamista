@@ -13,10 +13,24 @@ def get_summary_metrics(db: Session) -> dict:
     total_prestamos = db.query(func.count(Prestamo.id)).scalar() or 0
     total_pagos = db.query(func.count(Pago.id)).scalar() or 0
 
-    monto_total_prestado = db.query(func.coalesce(func.sum(Prestamo.monto), 0)).scalar() or 0.0
     monto_total_recaudado = db.query(func.coalesce(func.sum(Pago.monto), 0)).scalar() or 0.0
-    monto_total_esperado = db.query(func.coalesce(func.sum(Prestamo.monto_total), 0)).scalar() or 0.0
     saldo_pendiente_total = db.query(func.coalesce(func.sum(Prestamo.saldo_pendiente), 0)).scalar() or 0.0
+
+    # Calcular prestado, esperado e intereses iterando todos los préstamos
+    todos_prestamos = db.query(Prestamo).all()
+    monto_total_prestado = 0.0
+    monto_total_esperado = 0.0
+    intereses_generados = 0.0
+    
+    for p in todos_prestamos:
+        capital = float(p.monto)
+        tasa = float(p.tasa_interes)
+        interes = capital * (tasa / 100.0)
+        total = capital + interes
+        
+        monto_total_prestado += capital
+        monto_total_esperado += total
+        intereses_generados += interes
 
     prestamos_activos = db.query(func.count(Prestamo.id)).filter(Prestamo.saldo_pendiente > 0, Prestamo.estado == 'activo').scalar() or 0
     prestamos_vencidos = db.query(func.count(Prestamo.id)).filter(
@@ -26,11 +40,6 @@ def get_summary_metrics(db: Session) -> dict:
 
     pagos_hoy = db.query(func.count(Pago.id)).filter(Pago.fecha_pago == today).scalar() or 0
 
-    # Tasa de recaudo basada en monto total esperado (capital + interés) y limitada a 100%
-    if monto_total_esperado > 0:
-        tasa_recaudo = min(monto_total_recaudado / monto_total_esperado, 1.0)
-    else:
-        tasa_recaudo = 0.0
     average_loan_size = (monto_total_prestado / total_prestamos) if total_prestamos > 0 else 0.0
     ticket_promedio_pago = (monto_total_recaudado / total_pagos) if total_pagos > 0 else 0.0
 
@@ -44,12 +53,9 @@ def get_summary_metrics(db: Session) -> dict:
     total_comisiones_cobrador = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).scalar() or 0.0
     total_comisiones = total_comisiones_vendedor + total_comisiones_cobrador
     
-    # Ingresos netos (recaudado menos comisiones pagadas)
-    ingresos_netos = monto_total_recaudado - total_comisiones
-    # Intereses cobrados (ganancia bruta antes de comisiones)
-    intereses_cobrados = monto_total_recaudado - monto_total_prestado
-    # Ganancias netas reales (intereses cobrados menos comisiones)
-    ganancias_netas = intereses_cobrados - total_comisiones
+    # Ganancias netas sin intereses: recaudado - comisiones pagadas.
+    ganancias_netas = monto_total_recaudado - total_comisiones
+    tasa_cobro = min(monto_total_recaudado / monto_total_esperado, 1.0) if monto_total_esperado > 0 else 0.0
 
     return {
         'timestamp': today.isoformat(),
@@ -63,7 +69,6 @@ def get_summary_metrics(db: Session) -> dict:
         'prestamos_activos': prestamos_activos,
         'prestamos_vencidos': prestamos_vencidos,
         'pagos_hoy': pagos_hoy,
-        'tasa_recaudo': round(tasa_recaudo, 4),
         'average_loan_size': round(average_loan_size, 2),
         'ticket_promedio_pago': round(ticket_promedio_pago, 2),
         'clientes_activos': clientes_activos,
@@ -73,10 +78,10 @@ def get_summary_metrics(db: Session) -> dict:
             'cobrador': round(total_comisiones_cobrador, 2),
             'total': round(total_comisiones, 2)
         },
-        'ingresos_netos': round(ingresos_netos, 2),  # Recaudado - comisiones
-        'intereses_cobrados': round(intereses_cobrados, 2),  # Recaudado - capital
-        'ganancias_netas': round(ganancias_netas, 2),  # Intereses - comisiones
-        'total_comisiones_pagadas': round(total_comisiones, 2)
+        'ganancias_netas': round(ganancias_netas, 2),  # Recaudado - comisiones
+        'total_comisiones_pagadas': round(total_comisiones, 2),
+        'intereses_generados': round(intereses_generados, 2),
+        'tasa_cobro': round(tasa_cobro, 4)
     }
 
 
@@ -167,11 +172,11 @@ def get_kpis(db: Session) -> dict:
         'monto_esperado_hoy': monto_esperado_hoy,
         'recaudado_hoy_monto': round(recaudado_hoy_monto, 2),
         'cumplimiento_hoy_pct': round(cumplimiento_hoy_pct, 4),
-        'tasa_recaudo': summary['tasa_recaudo'],
         'average_loan_size': summary['average_loan_size'],
         'ticket_promedio_pago': summary['ticket_promedio_pago'],
         'clientes_activos': clientes_activos,
-        'activation_rate': round(activation_rate, 4)
+        'activation_rate': round(activation_rate, 4),
+        'tasa_cobro': summary.get('tasa_cobro', 0.0)
     }
 
 
@@ -184,10 +189,6 @@ def get_daily_simple(db: Session, days: int = 1) -> dict:
 
     # Préstamos creados en el período (principal y con intereses)
     prestado_hoy = db.query(func.coalesce(func.sum(Prestamo.monto), 0)).filter(
-        func.date(Prestamo.created_at) >= start_date,
-        func.date(Prestamo.created_at) <= today_date
-    ).scalar() or 0.0
-    prestado_con_intereses_hoy = db.query(func.coalesce(func.sum(Prestamo.monto_total), 0)).filter(
         func.date(Prestamo.created_at) >= start_date,
         func.date(Prestamo.created_at) <= today_date
     ).scalar() or 0.0
@@ -214,49 +215,71 @@ def get_daily_simple(db: Session, days: int = 1) -> dict:
     return {
         'fecha': today_date.isoformat(),
         'prestado_hoy': round(prestado_hoy, 2),
-        'prestado_con_intereses_hoy': round(prestado_con_intereses_hoy, 2),
         'por_cobrar_hoy': round(por_cobrar_hoy, 2),
         'cobrado_hoy': round(cobrado_hoy, 2)
     }
 
 
 def get_period_metrics(db: Session, period_type: str, start_date: date, end_date: Optional[date] = None) -> dict:
-    """Obtiene métricas de un período específico (día, semana o mes)."""
+    """Obtiene métricas de un período específico (día, semana o mes).
+    IMPORTANTE: Intereses Generados es el interés pactado de los préstamos CREADOS en el período.
+    Fórmula: Para cada préstamo del período, Interés = monto * (tasa_interes / 100)
+    """
     if end_date is None:
         end_date = start_date
 
-    # Préstamos creados en el período
-    start_datetime = datetime.combine(start_date, datetime.min.time())
-    end_datetime = datetime.combine(end_date, datetime.max.time())
+    # Préstamos creados en el período (usar fecha_inicio, no created_at)
+    prestamos_periodo = db.query(Prestamo).filter(
+        Prestamo.fecha_inicio >= start_date,
+        Prestamo.fecha_inicio <= end_date
+    ).all()
     
-    prestado = db.query(func.coalesce(func.sum(Prestamo.monto), 0)).filter(
-        Prestamo.created_at >= start_datetime,
-        Prestamo.created_at <= end_datetime
-    ).scalar() or 0.0
+    # Calcular capital, total e intereses
+    prestado = 0.0
+    prestado_con_intereses = 0.0
+    intereses_generados = 0.0
     
-    prestado_con_intereses = db.query(func.coalesce(func.sum(Prestamo.monto_total), 0)).filter(
-        Prestamo.created_at >= start_datetime,
-        Prestamo.created_at <= end_datetime
-    ).scalar() or 0.0
+    for p in prestamos_periodo:
+        capital = float(p.monto)
+        tasa = float(p.tasa_interes)
+        
+        # Calcular interés: capital * (tasa / 100)
+        interes_prestamo = capital * (tasa / 100.0)
+        total_prestamo = capital + interes_prestamo
+        
+        prestado += capital
+        prestado_con_intereses += total_prestamo
+        intereses_generados += interes_prestamo
 
-    # Pagos realizados en el período
+    # Pagos (cobrado) en el período
     cobrado = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(
         Pago.fecha_pago >= start_date,
         Pago.fecha_pago <= end_date
     ).scalar() or 0.0
 
-    # Por cobrar: cuotas programadas en el período
+    # Por cobrar (cuotas programadas pendientes en el rango)
     prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
     por_cobrar = 0.0
-    
     for prestamo in prestamos_activos:
-        amortizacion = generar_amortizacion(prestamo, db)
-        for cuota in amortizacion:
+        for cuota in generar_amortizacion(prestamo, db):
             from datetime import datetime as dt
             fecha_cuota = dt.fromisoformat(cuota['fecha']).date()
-            if start_date <= fecha_cuota <= end_date:
-                if cuota['estado'] != 'Pagado':  # Solo cuotas pendientes o vencidas
-                    por_cobrar += cuota['monto']
+            if start_date <= fecha_cuota <= end_date and cuota['estado'] != 'Pagado':
+                por_cobrar += cuota['monto']
+
+    # Comisiones pagadas en el período
+    comisiones_pagadas_vendedor = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).join(
+        Pago, PagoVendedor.pago_id == Pago.id
+    ).filter(Pago.fecha_pago >= start_date, Pago.fecha_pago <= end_date).scalar() or 0.0
+    comisiones_pagadas_cobrador = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).join(
+        Pago, PagoCobrador.pago_id == Pago.id
+    ).filter(Pago.fecha_pago >= start_date, Pago.fecha_pago <= end_date).scalar() or 0.0
+    comisiones_pagadas = comisiones_pagadas_vendedor + comisiones_pagadas_cobrador
+    
+    # Tasa de cobro: cobrado vs monto total esperado del período
+    tasa_cobro_periodo = min(cobrado / prestado_con_intereses, 1.0) if prestado_con_intereses > 0 else 0.0
+    
+    ganancias_netas = cobrado - comisiones_pagadas
 
     return {
         'start_date': start_date.isoformat(),
@@ -264,7 +287,11 @@ def get_period_metrics(db: Session, period_type: str, start_date: date, end_date
         'prestado': round(prestado, 2),
         'prestado_con_intereses': round(prestado_con_intereses, 2),
         'por_cobrar': round(por_cobrar, 2),
-        'cobrado': round(cobrado, 2)
+        'cobrado': round(cobrado, 2),
+        'comisiones_pagadas': round(comisiones_pagadas, 2),
+        'intereses_generados': round(intereses_generados, 2),
+        'tasa_cobro': round(tasa_cobro_periodo, 4),
+        'ganancias_netas': round(ganancias_netas, 2)
     }
 
 
@@ -287,11 +314,20 @@ def get_expectativas(db: Session, start_date: date, end_date: Optional[date] = N
                     monto_esperado += cuota['monto']
                     cantidad_cuotas += 1
 
+    # Estimar comisiones esperadas (promedio basado en cuotas programadas)
+    total_recaudado_historico = db.query(func.coalesce(func.sum(Pago.monto), 0)).scalar() or 0.0
+    total_comisiones_historicas = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).scalar() or 0.0
+    total_comisiones_historicas += db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).scalar() or 0.0
+
+    tasa_comision = (total_comisiones_historicas / total_recaudado_historico) if total_recaudado_historico > 0 else 0.0
+    comisiones_esperadas = monto_esperado * tasa_comision
+
     return {
         'start_date': start_date.isoformat(),
         'end_date': end_date.isoformat(),
         'monto_esperado': round(monto_esperado, 2),
-        'cantidad_cuotas': cantidad_cuotas
+        'cantidad_cuotas': cantidad_cuotas,
+        'comisiones_esperadas': round(comisiones_esperadas, 2)
     }
 
 
@@ -457,11 +493,11 @@ def get_rentabilidad(db: Session) -> dict:
     comisiones_cobrador = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).scalar() or 0.0
     total_comisiones = comisiones_vendedor + comisiones_cobrador
     
-    # Ganancias brutas (intereses cobrados = recaudado - capital)
-    ganancias_brutas = total_recaudado - capital_invertido
+    # Ganancias netas (recaudado menos comisiones pagadas)
+    ganancias_netas = total_recaudado - total_comisiones
     
-    # Ganancias netas (después de comisiones)
-    ganancias_netas = ganancias_brutas - total_comisiones
+    # Ganancias brutas (recaudado total, antes de descontar comisiones)
+    ganancias_brutas = total_recaudado
     
     # ROI (Return on Investment)
     roi = (ganancias_netas / capital_invertido) if capital_invertido > 0 else 0.0
@@ -476,6 +512,68 @@ def get_rentabilidad(db: Session) -> dict:
     prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
     capital_en_riesgo = sum(float(p.monto) for p in prestamos_activos)  # type: ignore[arg-type]
     
+    # Calcular total esperado e intereses generados
+    todos_prestamos = db.query(Prestamo).all()
+    monto_total_esperado = 0.0
+    intereses_generados_total = 0.0
+    
+    for p in todos_prestamos:
+        capital = float(p.monto)
+        tasa = float(p.tasa_interes)
+        interes = capital * (tasa / 100.0)
+        total = capital + interes
+        
+        monto_total_esperado += total
+        intereses_generados_total += interes
+    
+    # Nuevas métricas
+    # 1. Tasa de Recuperación: cuánto del capital ya recuperaste
+    tasa_recuperacion = (total_recaudado / capital_invertido) if capital_invertido > 0 else 0.0
+    
+    # 2. Eficiencia de Cobro: cuánto cobraste vs lo que deberías cobrar (capital + intereses)
+    eficiencia_cobro = (total_recaudado / monto_total_esperado) if monto_total_esperado > 0 else 0.0
+    
+    # 3. Clientes activos
+    clientes_activos = db.query(func.count(func.distinct(Prestamo.cliente_id))).filter(
+        Prestamo.saldo_pendiente > 0
+    ).scalar() or 0
+    
+    # 4. Costo de Adquisición (comisiones por cliente activo)
+    costo_adquisicion = (total_comisiones / clientes_activos) if clientes_activos > 0 else 0.0
+    
+    # 5. Valor Promedio por Préstamo
+    total_prestamos = db.query(func.count(Prestamo.id)).scalar() or 0
+    valor_promedio_prestamo = (capital_invertido / total_prestamos) if total_prestamos > 0 else 0.0
+    
+    # 6. Ratio Comisiones/Ganancias
+    ratio_comisiones = (total_comisiones / ganancias_brutas) if ganancias_brutas > 0 else 0.0
+    
+    # 7. Capital Recuperado (parte del capital que ya volvió)
+    capital_recuperado = capital_invertido - capital_en_riesgo
+    
+    # 8. Intereses Pendientes (intereses que aún esperamos cobrar)
+    intereses_pendientes = por_cobrar - capital_en_riesgo if por_cobrar > capital_en_riesgo else 0.0
+    
+    # 9. Tiempo Promedio de Recuperación (en días)
+    prestamos_pagados = db.query(Prestamo).filter(Prestamo.saldo_pendiente == 0).all()
+    if prestamos_pagados:
+        tiempos = []
+        for p in prestamos_pagados:
+            if p.fecha_inicio and p.fecha_vencimiento:
+                dias = (p.fecha_vencimiento - p.fecha_inicio).days
+                tiempos.append(dias)
+        tiempo_promedio = sum(tiempos) / len(tiempos) if tiempos else 0
+    else:
+        tiempo_promedio = 0
+    
+    # 10. Tasa de Morosidad
+    total_prestamos_count = db.query(func.count(Prestamo.id)).scalar() or 0
+    prestamos_vencidos = db.query(func.count(Prestamo.id)).filter(
+        Prestamo.saldo_pendiente > 0,
+        Prestamo.fecha_vencimiento < date.today()
+    ).scalar() or 0
+    tasa_morosidad = (prestamos_vencidos / total_prestamos_count) if total_prestamos_count > 0 else 0.0
+    
     return {
         'capital_invertido': round(capital_invertido, 2),
         'total_recaudado': round(total_recaudado, 2),
@@ -487,7 +585,26 @@ def get_rentabilidad(db: Session) -> dict:
         'margen': round(margen, 4),
         'margen_porcentaje': round(margen * 100, 2),
         'por_cobrar': round(por_cobrar, 2),
-        'capital_en_riesgo': round(capital_en_riesgo, 2)
+        'capital_en_riesgo': round(capital_en_riesgo, 2),
+        # Nuevas métricas
+        'tasa_recuperacion': round(tasa_recuperacion, 4),
+        'tasa_recuperacion_porcentaje': round(tasa_recuperacion * 100, 2),
+        'eficiencia_cobro': round(eficiencia_cobro, 4),
+        'eficiencia_cobro_porcentaje': round(eficiencia_cobro * 100, 2),
+        'costo_adquisicion': round(costo_adquisicion, 2),
+        'clientes_activos': clientes_activos,
+        'valor_promedio_prestamo': round(valor_promedio_prestamo, 2),
+        'ratio_comisiones': round(ratio_comisiones, 4),
+        'ratio_comisiones_porcentaje': round(ratio_comisiones * 100, 2),
+        'capital_recuperado': round(capital_recuperado, 2),
+        'intereses_generados': round(intereses_generados_total, 2),
+        'intereses_pendientes': round(intereses_pendientes, 2),
+        'monto_total_esperado': round(monto_total_esperado, 2),
+        'tiempo_promedio_recuperacion': round(tiempo_promedio, 1),
+        'tasa_morosidad': round(tasa_morosidad, 4),
+        'tasa_morosidad_porcentaje': round(tasa_morosidad * 100, 2),
+        'prestamos_vencidos': prestamos_vencidos,
+        'total_prestamos': total_prestamos_count
     }
 
 
