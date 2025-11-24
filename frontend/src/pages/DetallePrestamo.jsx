@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchPrestamos, refinanciarPrestamo, fetchAmortizacion, fetchPrestamoVendedor } from '../api/prestamos';
+import { fetchPrestamos, refinanciarPrestamo, fetchAmortizacion, fetchPrestamoVendedor, fetchPrestamoVendedorResumen } from '../api/prestamos';
 import { fetchCliente } from '../api/clientes';
 import { fetchPagosByPrestamo } from '../api/pagos';
 import { exportPrestamoPDF, exportContratoPrestamoFormatoPDF } from '../utils/pdfExport';
@@ -16,6 +16,7 @@ export default function DetallePrestamo() {
   const [pagos, setPagos] = useState([]);
   const [amortizacion, setAmortizacion] = useState([]);
   const [vendedor, setVendedor] = useState(null);
+  const [comisionResumen, setComisionResumen] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showRefi, setShowRefi] = useState(false);
@@ -58,7 +59,7 @@ export default function DetallePrestamo() {
         setPagos(pagosData || []);
         setAmortizacion(amortizacionData || []);
 
-        // Cargar comisión de vendedor (si existe) + datos completos del empleado
+        // Cargar comisión de vendedor (si existe) + datos completos del empleado y resumen pagado
         try {
           const vend = await fetchPrestamoVendedor(id);
           if (vend && vend.empleado_id) {
@@ -69,6 +70,8 @@ export default function DetallePrestamo() {
           } else if (vend) {
             setVendedor(vend);
           }
+          const resumen = await fetchPrestamoVendedorResumen(id);
+          setComisionResumen(resumen);
         } catch (e) {
           // 404 u otro error: no hay comisión de vendedor, continuar
         }
@@ -375,6 +378,30 @@ export default function DetallePrestamo() {
                   <p className="info-value text-success fw-bold">{formatCurrency(vendedor.monto_comision)}</p>
                 </div>
               </div>
+              {comisionResumen && (
+                <div className="col-12">
+                  <div className="info-card">
+                    <label className="info-label">Pagos al Vendedor</label>
+                    <div className="d-flex align-items-center justify-content-between flex-wrap">
+                      <div className="me-3 small">
+                        <strong>{formatCurrency(comisionResumen.total_pagado)}</strong> pagado de <strong>{formatCurrency(comisionResumen.total_pactado)}</strong> ({formatCurrency(comisionResumen.restante)} restante)
+                      </div>
+                      <div className="progress flex-grow-1" style={{ minWidth: '200px', height: '18px' }}>
+                        <div
+                          className="progress-bar bg-success"
+                          role="progressbar"
+                          style={{ width: `${comisionResumen.total_pactado > 0 ? Math.min((comisionResumen.total_pagado / comisionResumen.total_pactado) * 100, 100) : 0}%` }}
+                          aria-valuenow={comisionResumen.total_pagado}
+                          aria-valuemin="0"
+                          aria-valuemax={comisionResumen.total_pactado}
+                        >
+                          {comisionResumen.total_pactado > 0 ? `${Math.min((comisionResumen.total_pagado / comisionResumen.total_pactado) * 100, 100).toFixed(1)}%` : '0%'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

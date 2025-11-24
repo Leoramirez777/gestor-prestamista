@@ -47,6 +47,12 @@ class PrestamoCreate(PrestamoBase):
     vendedor_porcentaje: Optional[float] = None  # % sobre base
     vendedor_base: Optional[str] = "total"  # total | interes
 
+class AprobarPrestamo(BaseModel):
+    porcentaje: float  # porcentaje de comisión del vendedor
+    base_tipo: Optional[str] = "total"  # total | interes
+    # permitir ajustar vendedor si fuera necesario
+    vendedor_empleado_id: Optional[int] = None
+
 class PrestamoUpdate(BaseModel):
     monto: Optional[float] = None
     tasa_interes: Optional[float] = None

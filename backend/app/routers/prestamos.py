@@ -4,7 +4,7 @@ from typing import List
 from datetime import timedelta, date
 from app.database.database import get_db
 from app.models.models import Prestamo, Cliente, Empleado, PrestamoVendedor, MovimientoCaja, Usuario
-from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate, Cuota, PrestamoVendedor as PrestamoVendedorSchema
+from app.schemas.schemas import Prestamo as PrestamoSchema, PrestamoCreate, PrestamoUpdate, RefinanciacionCreate, Cuota, PrestamoVendedor as PrestamoVendedorSchema, AprobarPrestamo
 from app.amortization_service import generar_amortizacion
 from app.caja_service import actualizar_totales_cierre, get_or_create_cierre
 from app.routers.auth import get_current_user
@@ -75,7 +75,7 @@ def get_prestamos_by_cliente(cliente_id: int, db: Session = Depends(get_db)):
     return prestamos
 
 @router.post("/", response_model=PrestamoSchema, status_code=status.HTTP_201_CREATED)
-def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
+def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
     """Crear un nuevo préstamo"""
     # Verificar que el cliente existe
     cliente = db.query(Cliente).filter(Cliente.id == prestamo.cliente_id).first()
@@ -100,6 +100,11 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
     if cierre_fecha.cerrado:
         raise HTTPException(status_code=400, detail="El día está cerrado. Abre la caja para registrar préstamos.")
 
+    # Estado inicial: si lo crea un vendedor debe quedar pendiente hasta aprobación admin
+    estado_inicial = "activo"
+    if current_user.role == 'vendedor':
+        estado_inicial = "pendiente"
+
     db_prestamo = Prestamo(
         cliente_id=prestamo.cliente_id,
         monto=prestamo.monto,
@@ -109,7 +114,7 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
         fecha_vencimiento=fecha_vencimiento,
         monto_total=monto_total,
         saldo_pendiente=monto_total,
-        estado="activo",
+        estado=estado_inicial,
         frecuencia_pago=prestamo.frecuencia_pago,
         cuotas_totales=cuotas_totales,
         cuotas_pagadas=0,
@@ -141,30 +146,54 @@ def create_prestamo(prestamo: PrestamoCreate, db: Session = Depends(get_db)):
     # Actualizar totales del cierre del día
     actualizar_totales_cierre(db, db_prestamo.fecha_inicio)
 
-    # Comisión vendedor (opcional)
-    if prestamo.vendedor_porcentaje and prestamo.vendedor_porcentaje > 0 and prestamo.vendedor_id:
-        if prestamo.vendedor_porcentaje < 0 or prestamo.vendedor_porcentaje > 100:
-            raise HTTPException(status_code=400, detail="Porcentaje vendedor inválido (0-100)")
-        base_tipo = (prestamo.vendedor_base or "total").lower()
-        if base_tipo not in ["total", "interes"]:
-            raise HTTPException(status_code=400, detail="Base vendedor inválida (total|interes)")
-        empleado = db.query(Empleado).filter(Empleado.id == prestamo.vendedor_id).first()
-        if not empleado:
-            raise HTTPException(status_code=404, detail="Vendedor no encontrado")
-        monto_interes = prestamo.monto * (prestamo.tasa_interes / 100)
-        monto_base = (prestamo.monto + monto_interes) if base_tipo == "total" else monto_interes
-        monto_comision = monto_base * (prestamo.vendedor_porcentaje / 100.0)
-        registro = PrestamoVendedor(
-            prestamo_id=db_prestamo.id,
-            empleado_id=empleado.id,
-            empleado_nombre=empleado.nombre,
-            porcentaje=prestamo.vendedor_porcentaje,
-            base_tipo=base_tipo,
-            monto_base=monto_base,
-            monto_comision=monto_comision,
-        )
-        db.add(registro)
-        db.commit()
+    # Lógica de asignación vendedor:
+    # 1. Si lo crea un admin y envía datos de comisión -> registrar
+    # 2. Si lo crea un vendedor -> crear registro con porcentaje 0 (pendiente de aprobación)
+    try:
+        if current_user.role == 'admin' and prestamo.vendedor_porcentaje and prestamo.vendedor_porcentaje > 0 and prestamo.vendedor_id:
+            if prestamo.vendedor_porcentaje < 0 or prestamo.vendedor_porcentaje > 100:
+                raise HTTPException(status_code=400, detail="Porcentaje vendedor inválido (0-100)")
+            base_tipo = (prestamo.vendedor_base or "total").lower()
+            if base_tipo not in ["total", "interes"]:
+                raise HTTPException(status_code=400, detail="Base vendedor inválida (total|interes)")
+            empleado = db.query(Empleado).filter(Empleado.id == prestamo.vendedor_id).first()
+            if not empleado:
+                raise HTTPException(status_code=404, detail="Vendedor no encontrado")
+            monto_interes_calc = prestamo.monto * (prestamo.tasa_interes / 100)
+            monto_base = (prestamo.monto + monto_interes_calc) if base_tipo == "total" else monto_interes_calc
+            monto_comision = monto_base * (prestamo.vendedor_porcentaje / 100.0)
+            registro = PrestamoVendedor(
+                prestamo_id=db_prestamo.id,
+                empleado_id=empleado.id,
+                empleado_nombre=empleado.nombre,
+                porcentaje=prestamo.vendedor_porcentaje,
+                base_tipo=base_tipo,
+                monto_base=monto_base,
+                monto_comision=monto_comision,
+            )
+            db.add(registro)
+            db.commit()
+        elif current_user.role == 'vendedor' and current_user.empleado_id:
+            # Crear registro placeholder para filtrado
+            empleado = db.query(Empleado).filter(Empleado.id == current_user.empleado_id).first()
+            if empleado:
+                monto_interes_calc = prestamo.monto * (prestamo.tasa_interes / 100)
+                # base para cálculo futuro
+                monto_base = (prestamo.monto + monto_interes_calc)
+                registro = PrestamoVendedor(
+                    prestamo_id=db_prestamo.id,
+                    empleado_id=empleado.id,
+                    empleado_nombre=empleado.nombre,
+                    porcentaje=0.0,
+                    base_tipo="total",
+                    monto_base=monto_base,
+                    monto_comision=0.0,
+                )
+                db.add(registro)
+                db.commit()
+    except Exception as e:
+        print(f"Error registrando comisión vendedor: {e}")
+    return db_prestamo
     return db_prestamo
 
 @router.put("/{prestamo_id}", response_model=PrestamoSchema)
@@ -266,3 +295,90 @@ def get_comision_vendedor(prestamo_id: int, db: Session = Depends(get_db)):
     if not registro:
         raise HTTPException(status_code=404, detail="Comisión de vendedor no encontrada")
     return registro
+
+@router.put("/{prestamo_id}/aprobar", response_model=PrestamoSchema)
+def aprobar_prestamo(prestamo_id: int, datos: AprobarPrestamo, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    """Aprueba un préstamo pendiente y asigna comisión de vendedor. Solo admin."""
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Solo un administrador puede aprobar préstamos")
+    prestamo = db.query(Prestamo).filter(Prestamo.id == prestamo_id).first()
+    if not prestamo:
+        raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+    if prestamo.estado != 'pendiente':
+        # permitir re-aprobar para ajustar comisión
+        pass
+
+    # Determinar empleado vendedor
+    empleado_id = datos.vendedor_empleado_id
+    registro = db.query(PrestamoVendedor).filter(PrestamoVendedor.prestamo_id == prestamo_id).first()
+    if registro and not empleado_id:
+        empleado_id = registro.empleado_id
+    empleado = None
+    if empleado_id:
+        empleado = db.query(Empleado).filter(Empleado.id == empleado_id).first()
+        if not empleado:
+            raise HTTPException(status_code=404, detail="Empleado vendedor no encontrado")
+
+    if datos.porcentaje < 0 or datos.porcentaje > 100:
+        raise HTTPException(status_code=400, detail="Porcentaje inválido (0-100)")
+    base_tipo = (datos.base_tipo or 'total').lower()
+    if base_tipo not in ['total','interes']:
+        raise HTTPException(status_code=400, detail="Base inválida (total|interes)")
+
+    monto_interes_calc = prestamo.monto * (prestamo.tasa_interes / 100)
+    monto_base = (prestamo.monto + monto_interes_calc) if base_tipo == 'total' else monto_interes_calc
+    monto_comision = monto_base * (datos.porcentaje / 100.0)
+
+    if registro:
+        registro.porcentaje = datos.porcentaje
+        registro.base_tipo = base_tipo
+        registro.monto_base = monto_base
+        registro.monto_comision = monto_comision
+        if empleado:
+            registro.empleado_id = empleado.id
+            registro.empleado_nombre = empleado.nombre
+    else:
+        if not empleado:
+            raise HTTPException(status_code=400, detail="Debe especificar vendedor para aprobación")
+        nuevo = PrestamoVendedor(
+            prestamo_id=prestamo.id,
+            empleado_id=empleado.id,
+            empleado_nombre=empleado.nombre,
+            porcentaje=datos.porcentaje,
+            base_tipo=base_tipo,
+            monto_base=monto_base,
+            monto_comision=monto_comision
+        )
+        db.add(nuevo)
+
+    # Cambiar estado a activo
+    prestamo.estado = 'activo'
+    db.commit()
+    db.refresh(prestamo)
+    return prestamo
+
+@router.get("/{prestamo_id}/vendedor/resumen")
+def resumen_comision_vendedor(prestamo_id: int, db: Session = Depends(get_db)):
+    """Resumen de comisión del vendedor para un préstamo: total pactado, pagado y restante."""
+    prestamo = db.query(Prestamo).filter(Prestamo.id == prestamo_id).first()
+    if not prestamo:
+        raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+    registro = db.query(PrestamoVendedor).filter(PrestamoVendedor.prestamo_id == prestamo_id).first()
+    total_pactado = 0.0
+    porcentaje = 0.0
+    base_tipo = None
+    if registro:
+        total_pactado = float(registro.monto_comision or 0.0)
+        porcentaje = float(registro.porcentaje or 0.0)
+        base_tipo = registro.base_tipo
+    from sqlalchemy import func
+    pagado = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).join(Pago, PagoVendedor.pago_id == Pago.id).filter(Pago.prestamo_id == prestamo_id).scalar() or 0.0
+    restante = max(total_pactado - pagado, 0.0)
+    return {
+        'prestamo_id': prestamo_id,
+        'porcentaje': porcentaje,
+        'base_tipo': base_tipo,
+        'total_pactado': round(total_pactado, 2),
+        'total_pagado': round(pagado, 2),
+        'restante': round(restante, 2)
+    }

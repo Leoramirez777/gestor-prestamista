@@ -91,3 +91,23 @@ export async function fetchAmortizacion(id) {
     handleApiError(err);
   }
 }
+
+export async function approvePrestamo(id, { porcentaje, base_tipo = 'total', vendedor_empleado_id = null }) {
+  try {
+    const payload = { porcentaje, base_tipo };
+    if (vendedor_empleado_id) payload.vendedor_empleado_id = vendedor_empleado_id;
+    const { data } = await api.put(`/api/prestamos/${id}/aprobar`, payload);
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function fetchPrestamoVendedorResumen(id) {
+  try {
+    const { data } = await api.get(`/api/prestamos/${id}/vendedor/resumen`);
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

@@ -129,8 +129,12 @@ function Resumen() {
           <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-calculator"></i></div><div className="metric-info"><span className="metric-label">Préstamo Promedio</span><span className="metric-value">{formatCurrency(summary.average_loan_size || 0)}</span></div></div>
         </div>
         <div className="metric-row mt-3">
-          <div className="metric-cell"><div className="metric-icon-circle teal" style={{backgroundColor:'#20c997'}}><i className="fas fa-receipt"></i></div><div className="metric-info"><span className="metric-label">Comisiones Pagadas</span><span className="metric-value">{formatCurrency(summary.total_comisiones_pagadas || 0)}</span></div></div>
-          <div className="metric-cell"><div className="metric-icon-circle dark" style={{backgroundColor:'#343a40'}}><i className="fas fa-coins"></i></div><div className="metric-info"><span className="metric-label">Ganancias Netas</span><span className="metric-value">{formatCurrency(summary.ganancias_netas || 0)}</span></div></div>
+          {localStorage.getItem('role') === 'admin' && (
+            <>
+              <div className="metric-cell"><div className="metric-icon-circle teal" style={{backgroundColor:'#20c997'}}><i className="fas fa-receipt"></i></div><div className="metric-info"><span className="metric-label">Comisiones Pagadas</span><span className="metric-value">{formatCurrency(summary.total_comisiones_pagadas || 0)}</span></div></div>
+              <div className="metric-cell"><div className="metric-icon-circle dark" style={{backgroundColor:'#343a40'}}><i className="fas fa-coins"></i></div><div className="metric-info"><span className="metric-label">Ganancias Netas</span><span className="metric-value">{formatCurrency(summary.ganancias_netas || 0)}</span></div></div>
+            </>
+          )}
           <div className="metric-cell"><div className="metric-icon-circle orange" style={{backgroundColor:'#fd7e14'}}><i className="fas fa-chart-line"></i></div><div className="metric-info"><span className="metric-label">Intereses Generados</span><span className="metric-value">{formatCurrency(summary.intereses_generados || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle blue" style={{backgroundColor:'#0d6efd'}}><i className="fas fa-percentage"></i></div><div className="metric-info"><span className="metric-label">Tasa Cobro</span><span className="metric-value">{percentDisplay(summary.tasa_cobro || 0)}</span></div></div>
         </div>
@@ -155,12 +159,16 @@ function Resumen() {
           <div className="metric-cell"><div className="metric-icon-circle yellow"><i className="fas fa-file-invoice-dollar"></i></div><div className="metric-info"><span className="metric-label">Prestado</span><span className="metric-value">{formatCurrency(periodData.prestado || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle green"><i className="fas fa-layer-group"></i></div><div className="metric-info"><span className="metric-label">Prestado Con Intereses</span><span className="metric-value">{formatCurrency(periodData.prestado_con_intereses || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle purple"><i className="fas fa-cash-register"></i></div><div className="metric-info"><span className="metric-label">Cobrado</span><span className="metric-value">{formatCurrency(periodData.cobrado || 0)}</span></div></div>
-          <div className="metric-cell"><div className="metric-icon-circle teal" style={{backgroundColor:'#20c997'}}><i className="fas fa-receipt"></i></div><div className="metric-info"><span className="metric-label">Comisiones Pagadas</span><span className="metric-value">{formatCurrency(periodData.comisiones_pagadas || 0)}</span></div></div>
+          {localStorage.getItem('role') === 'admin' && (
+            <div className="metric-cell"><div className="metric-icon-circle teal" style={{backgroundColor:'#20c997'}}><i className="fas fa-receipt"></i></div><div className="metric-info"><span className="metric-label">Comisiones Pagadas</span><span className="metric-value">{formatCurrency(periodData.comisiones_pagadas || 0)}</span></div></div>
+          )}
         </div>
         <div className="metric-row mt-3">
           <div className="metric-cell"><div className="metric-icon-circle orange"><i className="fas fa-chart-line"></i></div><div className="metric-info"><span className="metric-label">Intereses Generados</span><span className="metric-value">{formatCurrency(periodData.intereses_generados || ((periodData.prestado_con_intereses || 0) - (periodData.prestado || 0)))}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-percentage"></i></div><div className="metric-info"><span className="metric-label">Tasa Cobro</span><span className="metric-value">{periodData.prestado_con_intereses > 0 ? ((periodData.cobrado || 0) / periodData.prestado_con_intereses * 100).toFixed(1) + '%' : '0%'}</span></div></div>
-          <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-balance-scale"></i></div><div className="metric-info"><span className="metric-label">Ganancias Netas</span><span className="metric-value">{formatCurrency((periodData.ganancias_netas !== undefined ? periodData.ganancias_netas : (periodData.cobrado || 0) - (periodData.comisiones_pagadas || 0)))}</span></div></div>
+          {localStorage.getItem('role') === 'admin' && (
+            <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-balance-scale"></i></div><div className="metric-info"><span className="metric-label">Ganancias Netas</span><span className="metric-value">{formatCurrency((periodData.ganancias_netas !== undefined ? periodData.ganancias_netas : (periodData.cobrado || 0) - (periodData.comisiones_pagadas || 0)))}</span></div></div>
+          )}
         </div>
       </div>
       <div className="section-header mb-3">
@@ -202,6 +210,9 @@ function Resumen() {
       <div className="row g-4 mb-4">
         <div className="col-md-3"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle green mx-auto mb-3" style={{width:'70px',height:'70px'}}><i className="fas fa-percentage" style={{fontSize:'1.8rem'}}></i></div><h3 className="text-success mb-2">{rentabilidad.roi_porcentaje?.toFixed(2) || 0}%</h3><p className="text-muted mb-0 small">ROI</p></div></div></div>
         <div className="col-md-3"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle blue mx-auto mb-3" style={{width:'70px',height:'70px'}}><i className="fas fa-hand-holding-usd" style={{fontSize:'1.8rem'}}></i></div><h3 className="text-primary mb-2">{formatCurrency(rentabilidad.ganancias_netas || 0)}</h3><p className="text-muted mb-0 small">Ganancias Netas</p></div></div></div>
+                {localStorage.getItem('role') === 'admin' && (
+                  <div className="col-md-3"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle blue mx-auto mb-3" style={{width:'70px',height:'70px'}}><i className="fas fa-hand-holding-usd" style={{fontSize:'1.8rem'}}></i></div><h3 className="text-primary mb-2">{formatCurrency(rentabilidad.ganancias_netas || 0)}</h3><p className="text-muted mb-0 small">Ganancias Netas</p></div></div></div>
+                )}
         <div className="col-md-3"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle purple mx-auto mb-3" style={{width:'70px',height:'70px'}}><i className="fas fa-chart-pie" style={{fontSize:'1.8rem'}}></i></div><h3 className="text-purple mb-2">{rentabilidad.margen_porcentaje?.toFixed(2) || 0}%</h3><p className="text-muted mb-0 small">Margen</p></div></div></div>
         <div className="col-md-3"><div className="card border-0 shadow-sm h-100"><div className="card-body text-center"><div className="metric-icon-circle orange mx-auto mb-3" style={{width:'70px',height:'70px'}}><i className="fas fa-sync-alt" style={{fontSize:'1.8rem'}}></i></div><h3 className="text-warning mb-2">{rentabilidad.tasa_recuperacion_porcentaje?.toFixed(2) || 0}%</h3><p className="text-muted mb-0 small">Tasa Recuperación</p></div></div></div>
       </div>

@@ -60,11 +60,12 @@ def metrics_daily_simple(days: int = 1, db: Session = Depends(get_db)):
 
 
 @router.get("/period/date")
-def metrics_period_date(date: str = Query(...), db: Session = Depends(get_db)):
+def metrics_period_date(date: str = Query(...), db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
     """Métricas de un día específico."""
     try:
         target_date = datetime.strptime(date, '%Y-%m-%d').date()
-        result = get_period_metrics(db, 'date', target_date)
+        empleado_id = None if current_user.role == 'admin' else current_user.empleado_id
+        result = get_period_metrics(db, 'date', target_date, empleado_id=empleado_id)
         return result
     except Exception as e:
         import traceback
@@ -73,48 +74,53 @@ def metrics_period_date(date: str = Query(...), db: Session = Depends(get_db)):
 
 
 @router.get("/period/week")
-def metrics_period_week(start_date: str = Query(...), end_date: str = Query(...), db: Session = Depends(get_db)):
+def metrics_period_week(start_date: str = Query(...), end_date: str = Query(...), db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
     """Métricas de una semana específica."""
     start = datetime.strptime(start_date, '%Y-%m-%d').date()
     end = datetime.strptime(end_date, '%Y-%m-%d').date()
-    return get_period_metrics(db, 'week', start, end)
+    empleado_id = None if current_user.role == 'admin' else current_user.empleado_id
+    return get_period_metrics(db, 'week', start, end, empleado_id=empleado_id)
 
 
 @router.get("/period/month")
-def metrics_period_month(month: str = Query(...), db: Session = Depends(get_db)):
+def metrics_period_month(month: str = Query(...), db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
     """Métricas de un mes específico (formato YYYY-MM)."""
     year, month_num = map(int, month.split('-'))
     start = date(year, month_num, 1)
     # Último día del mes usando monthrange
     _, last_day = monthrange(year, month_num)
     end = date(year, month_num, last_day)
-    return get_period_metrics(db, 'month', start, end)
+    empleado_id = None if current_user.role == 'admin' else current_user.empleado_id
+    return get_period_metrics(db, 'month', start, end, empleado_id=empleado_id)
 
 
 @router.get("/expectativas/date")
-def expectativas_date(date: str = Query(...), db: Session = Depends(get_db)):
-    """Expectativas de cobro para un día específico."""
+def expectativas_date(date: str = Query(...), db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    """Expectativas de cobro para una fecha específica."""
     target_date = datetime.strptime(date, '%Y-%m-%d').date()
-    return get_expectativas(db, target_date)
+    empleado_id = None if current_user.role == 'admin' else current_user.empleado_id
+    return get_expectativas(db, target_date, empleado_id=empleado_id)
 
 
 @router.get("/expectativas/week")
-def expectativas_week(start_date: str = Query(...), end_date: str = Query(...), db: Session = Depends(get_db)):
+def expectativas_week(start_date: str = Query(...), end_date: str = Query(...), db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
     """Expectativas de cobro para una semana específica."""
     start = datetime.strptime(start_date, '%Y-%m-%d').date()
     end = datetime.strptime(end_date, '%Y-%m-%d').date()
-    return get_expectativas(db, start, end)
+    empleado_id = None if current_user.role == 'admin' else current_user.empleado_id
+    return get_expectativas(db, start, end, empleado_id=empleado_id)
 
 
 @router.get("/expectativas/month")
-def expectativas_month(month: str = Query(...), db: Session = Depends(get_db)):
+def expectativas_month(month: str = Query(...), db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
     """Expectativas de cobro para un mes específico (formato YYYY-MM)."""
     year, month_num = map(int, month.split('-'))
     start = date(year, month_num, 1)
     # Último día del mes usando monthrange
     _, last_day = monthrange(year, month_num)
     end = date(year, month_num, last_day)
-    return get_expectativas(db, start, end)
+    empleado_id = None if current_user.role == 'admin' else current_user.empleado_id
+    return get_expectativas(db, start, end, empleado_id=empleado_id)
 
 
 @router.get("/segment", response_model=SegmentResponse)

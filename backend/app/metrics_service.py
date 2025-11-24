@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.models import Cliente, Prestamo, Pago, PagoVendedor, PagoCobrador, PrestamoVendedor
+from app.amortization_service import generar_amortizacion
 
 
 def get_summary_metrics(db: Session, empleado_id: Optional[int] = None) -> dict:
@@ -257,7 +258,7 @@ def get_daily_simple(db: Session, days: int = 1) -> dict:
     }
 
 
-def get_period_metrics(db: Session, period_type: str, start_date: date, end_date: Optional[date] = None) -> dict:
+def get_period_metrics(db: Session, period_type: str, start_date: date, end_date: Optional[date] = None, empleado_id: Optional[int] = None) -> dict:
     """Obtiene métricas de un período específico (día, semana o mes).
     IMPORTANTE: Intereses Generados es el interés pactado de los préstamos CREADOS en el período.
     Fórmula: Para cada préstamo del período, Interés = monto * (tasa_interes / 100)
@@ -266,10 +267,23 @@ def get_period_metrics(db: Session, period_type: str, start_date: date, end_date
         end_date = start_date
 
     # Préstamos creados en el período (usar fecha_inicio, no created_at)
-    prestamos_periodo = db.query(Prestamo).filter(
+    prestamos_query = db.query(Prestamo).filter(
         Prestamo.fecha_inicio >= start_date,
         Prestamo.fecha_inicio <= end_date
-    ).all()
+    )
+    
+    # Filtrar por empleado si no es admin
+    if empleado_id:
+        prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(
+            PrestamoVendedor.empleado_id == empleado_id
+        ).distinct().all()
+        prestamo_ids_list = [p[0] for p in prestamos_ids]
+        if prestamo_ids_list:
+            prestamos_query = prestamos_query.filter(Prestamo.id.in_(prestamo_ids_list))
+        else:
+            prestamos_query = prestamos_query.filter(Prestamo.id == -1)  # No results
+    
+    prestamos_periodo = prestamos_query.all()
     
     # Calcular capital, total e intereses
     prestado = 0.0
@@ -289,20 +303,34 @@ def get_period_metrics(db: Session, period_type: str, start_date: date, end_date
         intereses_generados += interes_prestamo
 
     # Pagos (cobrado) en el período
-    cobrado = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(
+    pagos_query = db.query(func.coalesce(func.sum(Pago.monto), 0)).filter(
         Pago.fecha_pago >= start_date,
         Pago.fecha_pago <= end_date
-    ).scalar() or 0.0
+    )
+    if empleado_id and prestamo_ids_list:
+        pagos_query = pagos_query.filter(Pago.prestamo_id.in_(prestamo_ids_list))
+    cobrado = pagos_query.scalar() or 0.0
 
     # Por cobrar (cuotas programadas pendientes en el rango)
-    prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
+    prestamos_activos_query = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0)
+    if empleado_id and prestamo_ids_list:
+        prestamos_activos_query = prestamos_activos_query.filter(Prestamo.id.in_(prestamo_ids_list))
+    prestamos_activos = prestamos_activos_query.all()
     por_cobrar = 0.0
-    for prestamo in prestamos_activos:
-        for cuota in generar_amortizacion(prestamo, db):
-            from datetime import datetime as dt
-            fecha_cuota = dt.fromisoformat(cuota['fecha']).date()
-            if start_date <= fecha_cuota <= end_date and cuota['estado'] != 'Pagado':
-                por_cobrar += cuota['monto']
+    try:
+        for prestamo in prestamos_activos:
+            try:
+                for cuota in generar_amortizacion(prestamo, db):
+                    from datetime import datetime as dt
+                    fecha_cuota = dt.fromisoformat(cuota['fecha']).date()
+                    if start_date <= fecha_cuota <= end_date and cuota['estado'] != 'Pagado':
+                        por_cobrar += cuota['monto']
+            except Exception as e:
+                print(f"Error procesando amortización para préstamo {prestamo.id}: {e}")
+                continue
+    except Exception as e:
+        print(f"Error en cálculo de por_cobrar: {e}")
+        por_cobrar = 0.0
 
     # Comisiones pagadas en el período
     comisiones_pagadas_vendedor = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).join(
@@ -332,24 +360,46 @@ def get_period_metrics(db: Session, period_type: str, start_date: date, end_date
     }
 
 
-def get_expectativas(db: Session, start_date: date, end_date: Optional[date] = None) -> dict:
+def get_expectativas(db: Session, start_date: date, end_date: Optional[date] = None, empleado_id: Optional[int] = None) -> dict:
     """Obtiene las expectativas de cobro para un período específico."""
     if end_date is None:
         end_date = start_date
 
-    prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
+    prestamos_activos_query = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0)
+    
+    # Filtrar por empleado si no es admin
+    if empleado_id:
+        prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(
+            PrestamoVendedor.empleado_id == empleado_id
+        ).distinct().all()
+        prestamo_ids_list = [p[0] for p in prestamos_ids]
+        if prestamo_ids_list:
+            prestamos_activos_query = prestamos_activos_query.filter(Prestamo.id.in_(prestamo_ids_list))
+        else:
+            prestamos_activos_query = prestamos_activos_query.filter(Prestamo.id == -1)  # No results
+    
+    prestamos_activos = prestamos_activos_query.all()
     monto_esperado = 0.0
     cantidad_cuotas = 0
 
-    for prestamo in prestamos_activos:
-        amortizacion = generar_amortizacion(prestamo, db)
-        for cuota in amortizacion:
-            from datetime import datetime as dt
-            fecha_cuota = dt.fromisoformat(cuota['fecha']).date()
-            if start_date <= fecha_cuota <= end_date:
-                if cuota['estado'] != 'Pagado':  # Solo cuotas pendientes o vencidas
-                    monto_esperado += cuota['monto']
-                    cantidad_cuotas += 1
+    try:
+        for prestamo in prestamos_activos:
+            try:
+                amortizacion = generar_amortizacion(prestamo, db)
+                for cuota in amortizacion:
+                    from datetime import datetime as dt
+                    fecha_cuota = dt.fromisoformat(cuota['fecha']).date()
+                    if start_date <= fecha_cuota <= end_date:
+                        if cuota['estado'] != 'Pagado':  # Solo cuotas pendientes o vencidas
+                            monto_esperado += cuota['monto']
+                            cantidad_cuotas += 1
+            except Exception as e:
+                print(f"Error procesando expectativas para préstamo {prestamo.id}: {e}")
+                continue
+    except Exception as e:
+        print(f"Error en get_expectativas: {e}")
+        monto_esperado = 0.0
+        cantidad_cuotas = 0
 
     # Estimar comisiones esperadas (promedio basado en cuotas programadas)
     total_recaudado_historico = db.query(func.coalesce(func.sum(Pago.monto), 0)).scalar() or 0.0

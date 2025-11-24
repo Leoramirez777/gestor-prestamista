@@ -293,53 +293,42 @@ function App({ onLogout }) {
                         )}
                       </div>
                       <div className="text-end">
-                        <h3 className={`text-${item.color} fw-bold mb-0`}>
-                          {item.title === 'Resumen Financiero' ? formatCurrency(item.stat) : item.stat}
-                        </h3>
+                        <h3 className={`text-${item.color} fw-bold mb-0`}>{item.stat !== '' && item.stat != null ? (typeof item.stat === 'number' ? item.stat : item.stat) : '\u00A0'}</h3>
                         <small className="text-muted fw-semibold">{item.statLabel}</small>
                       </div>
                     </div>
-                    <h5 className={`card-title text-dark fw-bold mb-2`}>
-                      {item.title}
-                    </h5>
-                    <p className="card-text text-muted small mb-3">
-                      {item.description}
-                    </p>
+                    <h5 className="card-title text-dark fw-bold mb-2">{item.title}</h5>
+                    <p className="card-text text-muted small mb-3">{item.description}</p>
                     <div className="d-grid gap-2">
-                      {(() => {
-                        // Personalización específica solicitada
-                        if (item.title === 'Resumen Financiero') {
-                          return (
-                            <button
-                              className={`btn btn-${item.color} btn-lg fw-semibold`}
-                              onClick={() => navegarA(item.path)}
-                              style={{ borderRadius: '10px' }}
-                            >
-                              {typeof item.icon === 'string' && (item.icon.startsWith('fa') || item.icon.includes('fa-')) ? (
-                                <i className={`${item.icon} me-2`} />
-                              ) : (
-                                <span className="me-2" style={{ fontSize: '1.1rem' }}>{item.icon}</span>
-                              )}
-                              Ver Resumen Financiero
-                            </button>
-                          );
-                        }
-                        if (item.title === 'Caja Diaria') {
-                          return (
-                            <button
-                              className={`btn btn-${item.color} btn-lg fw-semibold`}
-                              onClick={() => navegarA(item.path)}
-                              style={{ borderRadius: '10px' }}
-                            >
-                              {typeof item.icon === 'string' && (item.icon.startsWith('fa') || item.icon.includes('fa-')) ? (
-                                <i className={`${item.icon} me-2`} />
-                              ) : (
-                                <span className="me-2" style={{ fontSize: '1.1rem' }}>{item.icon}</span>
-                              )}
-                              Ver Caja
-                            </button>
-                          );
-                        }
+                      {item.title === 'Resumen Financiero' && (
+                        <button
+                          className={`btn btn-${item.color} btn-lg fw-semibold`}
+                          onClick={() => navegarA(item.path)}
+                          style={{ borderRadius: '10px' }}
+                        >
+                          {typeof item.icon === 'string' && (item.icon.startsWith('fa') || item.icon.includes('fa-')) ? (
+                            <i className={`${item.icon} me-2`} />
+                          ) : (
+                            <span className="me-2" style={{ fontSize: '1.1rem' }}>{item.icon}</span>
+                          )}
+                          Ver Resumen Financiero
+                        </button>
+                      )}
+                      {item.title === 'Caja Diaria' && (
+                        <button
+                          className={`btn btn-${item.color} btn-lg fw-semibold`}
+                          onClick={() => navegarA(item.path)}
+                          style={{ borderRadius: '10px' }}
+                        >
+                          {typeof item.icon === 'string' && (item.icon.startsWith('fa') || item.icon.includes('fa-')) ? (
+                            <i className={`${item.icon} me-2`} />
+                          ) : (
+                            <span className="me-2" style={{ fontSize: '1.1rem' }}>{item.icon}</span>
+                          )}
+                          Ver Caja
+                        </button>
+                      )}
+                      {item.title !== 'Resumen Financiero' && item.title !== 'Caja Diaria' && (() => {
                         const { viewLabel, newLabel } = getCardLabels(item.title);
                         return (
                           <>
@@ -372,48 +361,45 @@ function App({ onLogout }) {
               </div>
             ))}
 
-            {/* Card de Empleados (se coloca en la zona del Resumen) */}
-            <div className="col-md-6">
-              <div className="card h-100 shadow-sm border-0 bg-white" style={{ transition: 'transform 0.2s', cursor: 'pointer' }}
-                   onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
-                   onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0px)'}>
-                <div className="card-body p-4">
-                  <div className="d-flex justify-content-between align-items-start mb-3">
-                    <div className="bg-purple bg-opacity-10 p-3 rounded-3">
-                      <span style={{ fontSize: '1.6rem' }}>👤</span>
+            {role === 'admin' && (
+              <div className="col-md-6">
+                <div className="card h-100 shadow-sm border-0 bg-white" style={{ transition: 'transform 0.2s', cursor: 'pointer' }}
+                     onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
+                     onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0px)'}>
+                  <div className="card-body p-4">
+                    <div className="d-flex justify-content-between align-items-start mb-3">
+                      <div className="bg-purple bg-opacity-10 p-3 rounded-3">
+                        <span style={{ fontSize: '1.6rem' }}>👤</span>
+                      </div>
+                      <div className="text-end">
+                        <h3 className="text-purple fw-bold mb-0">&nbsp;</h3>
+                        <small className="text-muted fw-semibold">Empleados</small>
+                      </div>
                     </div>
-                    <div className="text-end">
-                      <h3 className="text-purple fw-bold mb-0">&nbsp;</h3>
-                      <small className="text-muted fw-semibold">Empleados</small>
+                    <h5 className="card-title text-dark fw-bold mb-2">Gestión de Empleados</h5>
+                    <p className="card-text text-muted small mb-3">Administra los empleados, roles y permisos dentro del sistema.</p>
+                    <div className="d-grid gap-2">
+                      <button
+                        className="btn btn-purple btn-lg fw-semibold"
+                        onClick={() => navegarA('/ver-empleados')}
+                        style={{ borderRadius: '10px' }}
+                      >
+                        <span className="me-2" style={{ fontSize: '1.1rem' }}>👤</span>
+                        Ver Empleados
+                      </button>
+                      <button
+                        className="btn btn-outline-purple fw-semibold"
+                        onClick={() => navegarA('/empleados')}
+                        style={{ borderRadius: '10px' }}
+                      >
+                        <i className="fas fa-user-plus me-2"></i>
+                        Nuevo Empleado
+                      </button>
                     </div>
-                  </div>
-                  <h5 className="card-title text-dark fw-bold mb-2">
-                    Gestión de Empleados
-                  </h5>
-                  <p className="card-text text-muted small mb-3">
-                    Administra los empleados, roles y permisos dentro del sistema.
-                  </p>
-                  <div className="d-grid gap-2">
-                    <button
-                      className="btn btn-purple btn-lg fw-semibold"
-                      onClick={() => navegarA('/ver-empleados')}
-                      style={{ borderRadius: '10px' }}
-                    >
-                      <span className="me-2" style={{ fontSize: '1.1rem' }}>👤</span>
-                      Ver Empleados
-                    </button>
-                    <button
-                      className="btn btn-outline-purple fw-semibold"
-                      onClick={() => navegarA('/empleados')}
-                      style={{ borderRadius: '10px' }}
-                    >
-                      <i className="fas fa-user-plus me-2"></i>
-                      Nuevo Empleado
-                    </button>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
             {/* Card de Ajustes colocada junto al Resumen */}
             <div className="col-md-6">
               <div className="card h-100 shadow-sm border-0 bg-white" style={{ transition: 'transform 0.2s', cursor: 'pointer' }}

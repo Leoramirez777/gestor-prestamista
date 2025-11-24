@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchPrestamos } from '../api/prestamos';
+import { fetchPrestamos, approvePrestamo } from '../api/prestamos';
 import { fetchClientes } from '../api/clientes';
 import { fetchEmpleados } from '../api/empleados';
 import '../styles/Prestamos.css';
@@ -37,6 +37,13 @@ export default function Prestamos() {
   // Mapa de vendedores por préstamo
   const [vendedoresMap, setVendedoresMap] = useState({});
   const [empleados, setEmpleados] = useState([]);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [approvingPrestamo, setApprovingPrestamo] = useState(null);
+  const [porcentajeComision, setPorcentajeComision] = useState('');
+  const [baseTipo, setBaseTipo] = useState('total');
+  const [approveLoading, setApproveLoading] = useState(false);
+  const [approveError, setApproveError] = useState(null);
+  const role = (typeof window !== 'undefined' && localStorage.getItem('role')) || 'admin';
 
   useEffect(() => {
     const loadData = async () => {
@@ -76,6 +83,8 @@ export default function Prestamos() {
       case 'activo': return 'badge bg-success';
       case 'pagado': return 'badge bg-primary';
       case 'vencido': return 'badge bg-danger';
+      case 'refinanciado': return 'badge bg-dark';
+      case 'pendiente': return 'badge bg-warning text-dark';
       default: return 'badge bg-secondary';
     }
   };
@@ -265,6 +274,7 @@ export default function Prestamos() {
                 <option value="pagado">Pagado</option>
                 <option value="vencido">Vencido</option>
                 <option value="refinanciado">Refinanciado</option>
+                <option value="pendiente">Pendiente</option>
               </select>
             </div>
             <div className="col-md-2">
@@ -497,7 +507,7 @@ export default function Prestamos() {
                     <tr 
                       key={prestamo.id}
                       onClick={() => navigate(`/prestamos/${prestamo.id}`)}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: 'pointer', backgroundColor: prestamo.estado === 'pendiente' ? 'rgba(255,193,7,0.08)' : undefined }}
                     >
                       <td>
                         <span className="fw-bold text-primary">#{prestamo.id}</span>
@@ -535,18 +545,107 @@ export default function Prestamos() {
                           <span className="text-muted">No</span>
                         )}
                       </td>
-                      <td onClick={(e) => e.stopPropagation()}>
+                      <td onClick={(e) => e.stopPropagation()} className="d-flex gap-2">
                         <button 
                           className="btn btn-success btn-sm"
                           onClick={() => navigate('/pagos', { state: { prestamoId: prestamo.id } })}
                         >
                           Pagar
                         </button>
+                        {role === 'admin' && prestamo.estado === 'pendiente' && (
+                          <button
+                            className="btn btn-warning btn-sm"
+                            onClick={() => {
+                              setApprovingPrestamo(prestamo);
+                              setShowApproveModal(true);
+                              setPorcentajeComision('');
+                              setBaseTipo('total');
+                              setApproveError(null);
+                            }}
+                          >
+                            Aprobar
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+      {showApproveModal && approvingPrestamo && (
+        <div className="modal fade show" style={{ display: 'block', background: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Aprobar Préstamo #{approvingPrestamo.id}</h5>
+                <button type="button" className="btn-close" onClick={() => setShowApproveModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <p className="small text-muted mb-2">Defina la comisión del vendedor para este préstamo antes de activarlo.</p>
+                {vendedoresMap[approvingPrestamo.id] ? (
+                  <div className="alert alert-light py-2"><small><strong>Vendedor:</strong> {vendedoresMap[approvingPrestamo.id].nombre}</small></div>
+                ) : (
+                  <div className="alert alert-warning py-2"><small>No hay vendedor asignado. Puede aprobar sin comisión.</small></div>
+                )}
+                <div className="mb-3">
+                  <label className="form-label">Porcentaje Comisión (%)</label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={porcentajeComision}
+                    onChange={e => setPorcentajeComision(e.target.value)}
+                    placeholder="Ej: 5"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Base de Cálculo</label>
+                  <div className="d-flex gap-3">
+                    <div className="form-check">
+                      <input className="form-check-input" type="radio" name="baseComision" id="baseTotal" checked={baseTipo==='total'} onChange={()=>setBaseTipo('total')} />
+                      <label className="form-check-label" htmlFor="baseTotal">Total (capital + interés)</label>
+                    </div>
+                    <div className="form-check">
+                      <input className="form-check-input" type="radio" name="baseComision" id="baseInteres" checked={baseTipo==='interes'} onChange={()=>setBaseTipo('interes')} />
+                      <label className="form-check-label" htmlFor="baseInteres">Sólo interés</label>
+                    </div>
+                  </div>
+                </div>
+                {approveError && <div className="alert alert-danger py-2"><small>{approveError}</small></div>}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-outline-secondary" onClick={()=>setShowApproveModal(false)} disabled={approveLoading}>Cancelar</button>
+                <button
+                  className="btn btn-warning"
+                  disabled={approveLoading}
+                  onClick={async ()=>{
+                    try {
+                      setApproveLoading(true);
+                      setApproveError(null);
+                      const porcentaje = parseFloat(porcentajeComision || '0');
+                      if (porcentaje < 0 || porcentaje > 100) { setApproveError('Porcentaje inválido'); setApproveLoading(false); return; }
+                      await approvePrestamo(approvingPrestamo.id, { porcentaje, base_tipo: baseTipo });
+                      // reload list
+                      const [prestamosData] = await Promise.all([ fetchPrestamos() ]);
+                      setPrestamos(prestamosData || []);
+                      await loadVendedoresInfo(prestamosData || []);
+                      setShowApproveModal(false);
+                      setApprovingPrestamo(null);
+                    } catch (e) {
+                      setApproveError(e.message || 'Error aprobando');
+                    } finally {
+                      setApproveLoading(false);
+                    }
+                  }}
+                >
+                  {approveLoading ? 'Procesando...' : 'Aprobar'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
