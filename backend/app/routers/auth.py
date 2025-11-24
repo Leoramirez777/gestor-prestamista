@@ -24,6 +24,8 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     username: str
+    role: str
+    empleado_id: Optional[int] = None
 
 class TokenData(BaseModel):
     username: Optional[str] = None
@@ -32,6 +34,8 @@ class UserCreate(BaseModel):
     username: str
     password: str
     nombre_completo: str
+    role: str = "vendedor"  # admin | vendedor | cobrador (solo admin puede asignar)
+    empleado_id: Optional[int] = None
     dni: Optional[str] = None
     telefono: Optional[str] = None
     direccion: Optional[str] = None
@@ -41,6 +45,8 @@ class UserResponse(BaseModel):
     id: int
     username: str
     nombre_completo: str
+    role: str
+    empleado_id: Optional[int] = None
     dni: Optional[str] = None
     telefono: Optional[str] = None
     direccion: Optional[str] = None
@@ -87,19 +93,25 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 # Rutas
-@router.post("/register", response_model=UserResponse)
-def register(user: UserCreate, db: Session = Depends(get_db)):
-    # Verificar si el usuario ya existe
+def require_admin(current_user: Usuario = Depends(get_current_user)):
+    if getattr(current_user, 'role', 'admin') != 'admin':
+        raise HTTPException(status_code=403, detail="Solo administradores pueden crear usuarios")
+    return current_user
+
+@router.post("/admin/create-user", response_model=UserResponse)
+def admin_create_user(user: UserCreate, db: Session = Depends(get_db), admin: Usuario = Depends(require_admin)):
     db_user = db.query(Usuario).filter(Usuario.username == user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="El usuario ya existe")
-    
-    # Crear nuevo usuario
+    if user.role not in ("admin", "vendedor", "cobrador"):
+        raise HTTPException(status_code=400, detail="Rol inválido")
     hashed_password = get_password_hash(user.password)
     new_user = Usuario(
         username=user.username,
         hashed_password=hashed_password,
         nombre_completo=user.nombre_completo,
+        role=user.role,
+        empleado_id=user.empleado_id,
         dni=user.dni,
         telefono=user.telefono,
         direccion=user.direccion,
@@ -127,12 +139,19 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "username": user.username
+        "username": user.username,
+        "role": getattr(user, 'role', 'admin'),
+        "empleado_id": getattr(user, 'empleado_id', None)
     }
 
 @router.get("/me", response_model=UserResponse)
 def read_users_me(current_user: Usuario = Depends(get_current_user)):
     return current_user
+
+@router.get("/usuarios", response_model=list[UserResponse])
+def list_usuarios(db: Session = Depends(get_db), admin: Usuario = Depends(require_admin)):
+    usuarios = db.query(Usuario).all()
+    return usuarios
 
 class UserUpdate(BaseModel):
     nombre_completo: Optional[str] = None

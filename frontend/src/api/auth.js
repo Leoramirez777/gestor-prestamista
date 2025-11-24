@@ -12,6 +12,8 @@ export const login = async (username, password) => {
   if (response.data.access_token) {
     localStorage.setItem('token', response.data.access_token);
     localStorage.setItem('username', response.data.username);
+    if (response.data.role) localStorage.setItem('role', response.data.role);
+    if (response.data.empleado_id !== undefined) localStorage.setItem('empleado_id', String(response.data.empleado_id ?? ''));
   }
   
   return response.data;
@@ -29,6 +31,8 @@ export const register = async (username, password, nombre_completo) => {
 export const logout = () => {
   localStorage.removeItem('token');
   localStorage.removeItem('username');
+  localStorage.removeItem('role');
+  localStorage.removeItem('empleado_id');
 };
 
 export const getCurrentUser = async () => {
@@ -38,7 +42,9 @@ export const getCurrentUser = async () => {
     const response = await axios.get(`${API_URL}/me`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    return response.data; // incluye dni, telefono, direccion, email
+    if (response.data?.role) localStorage.setItem('role', response.data.role);
+    if (response.data?.empleado_id !== undefined) localStorage.setItem('empleado_id', String(response.data.empleado_id ?? ''));
+    return response.data;
   } catch (error) {
     logout();
     return null;

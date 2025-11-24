@@ -4,6 +4,8 @@ import { fetchEmpleado, fetchComisionesEmpleado, fetchComisionesVendedorEmpleado
 import "../styles/PerfilEmpleado.css";
 import formatCurrency from '../utils/formatCurrency';
 import useSettingsStore from '../stores/useSettingsStore';
+import { getToken } from '../api/auth';
+import axios from 'axios';
 
 export default function PerfilEmpleado() {
   const { id } = useParams();
@@ -12,6 +14,12 @@ export default function PerfilEmpleado() {
   const [comisiones, setComisiones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [userMessage, setUserMessage] = useState(null);
+  const [usuarioAsociado, setUsuarioAsociado] = useState(null);
+  const [loadingUsuario, setLoadingUsuario] = useState(true);
 
   useEffect(() => {
     const load = async () => {
@@ -23,6 +31,21 @@ export default function PerfilEmpleado() {
           fetchComisionesVendedorEmpleado(id)
         ]);
         setEmpleado(dataEmpleado);
+        
+        // Verificar si existe un usuario asociado a este empleado
+        try {
+          setLoadingUsuario(true);
+          const token = getToken();
+          const responseUsuarios = await axios.get('http://localhost:8000/api/auth/usuarios', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const usuarioEncontrado = responseUsuarios.data.find(u => u.empleado_id === parseInt(id));
+          setUsuarioAsociado(usuarioEncontrado || null);
+        } catch (err) {
+          console.log('No se pudo verificar usuario asociado:', err);
+        } finally {
+          setLoadingUsuario(false);
+        };
         const normalizadas = [
           ...(cobrador || []).map(c => ({
             id: `c-${c.id}`,
@@ -55,6 +78,78 @@ export default function PerfilEmpleado() {
 
   // subscribe to moneda to force re-render on currency change
   const moneda = useSettingsStore(state => state.moneda);
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!username.trim() || !password.trim()) {
+      setUserMessage({ type: 'error', text: 'Usuario y contraseña son obligatorios' });
+      return;
+    }
+    
+    // Determinar rol basado en el puesto del empleado
+    let role = 'vendedor'; // por defecto
+    const puestoLower = (empleado.puesto || '').toLowerCase();
+    if (puestoLower.includes('cobrador')) {
+      role = 'cobrador';
+    } else if (puestoLower.includes('vendedor')) {
+      role = 'vendedor';
+    }
+    
+    try {
+      const token = getToken();
+      if (!token) {
+        setUserMessage({ type: 'error', text: 'No estás autenticado. Por favor inicia sesión nuevamente.' });
+        return;
+      }
+      
+      const userRole = localStorage.getItem('role');
+      console.log('Current user role:', userRole);
+      console.log('Token exists:', !!token);
+      console.log('Creating user with role:', role);
+      
+      const response = await axios.post(
+        'http://localhost:8000/api/auth/admin/create-user',
+        {
+          username: username.trim(),
+          password: password.trim(),
+          nombre_completo: empleado.nombre,
+          role: role,
+          empleado_id: parseInt(id),
+          dni: empleado.dni || '',
+          telefono: empleado.telefono || '',
+          email: empleado.email || ''
+        },
+        {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log('Usuario creado:', response.data);
+      setUserMessage({ type: 'success', text: `Usuario creado exitosamente con rol: ${role}` });
+      setUsername('');
+      setPassword('');
+      setShowUserForm(false);
+    } catch (err) {
+      console.error('Error completo:', err);
+      console.error('Response data:', err.response?.data);
+      console.error('Response status:', err.response?.status);
+      
+      let errorMsg = 'Error al crear usuario';
+      if (err.response?.status === 401) {
+        errorMsg = 'No tienes permisos de administrador o tu sesión expiró. Por favor cierra sesión y vuelve a ingresar.';
+      } else if (err.response?.data?.detail) {
+        errorMsg = err.response.data.detail;
+      }
+      
+      setUserMessage({ 
+        type: 'error', 
+        text: errorMsg
+      });
+    }
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return "—";
@@ -151,6 +246,123 @@ export default function PerfilEmpleado() {
           <div className="alert alert-light border mt-3 mb-0">
             <small className="text-muted">Las comisiones del cobrador se calculan automáticamente al registrar pagos con la opción Cobrador activada.</small>
           </div>
+        </div>
+      </div>
+
+      {/* Sección de Crear Usuario */}
+      <div className="card shadow-sm mb-4 empleado-card">
+        <div className="card-header empleado-card-header d-flex justify-content-between align-items-center">
+          <h4 className="mb-0">Acceso al Sistema</h4>
+          {!showUserForm && !usuarioAsociado && !loadingUsuario && (
+            <button 
+              className="btn btn-primary btn-sm" 
+              onClick={() => setShowUserForm(true)}
+            >
+              <i className="fas fa-user-plus"></i> Crear Usuario
+            </button>
+          )}
+        </div>
+        <div className="card-body">
+          {loadingUsuario ? (
+            <div className="text-center py-3">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Cargando...</span>
+              </div>
+            </div>
+          ) : usuarioAsociado ? (
+            <div>
+              <div className="alert alert-success d-flex align-items-center">
+                <i className="fas fa-check-circle fs-3 me-3"></i>
+                <div>
+                  <strong>Usuario activo en el sistema</strong>
+                  <p className="mb-0 mt-1">Este empleado ya tiene credenciales de acceso</p>
+                </div>
+              </div>
+              <div className="row mt-3">
+                <div className="col-md-4 mb-2">
+                  <label className="text-muted small">Usuario</label>
+                  <p className="fs-5 mb-0"><strong>{usuarioAsociado.username}</strong></p>
+                </div>
+                <div className="col-md-4 mb-2">
+                  <label className="text-muted small">Rol asignado</label>
+                  <p className="fs-5 mb-0">
+                    <span className={`badge bg-${usuarioAsociado.role === 'admin' ? 'danger' : usuarioAsociado.role === 'vendedor' ? 'primary' : 'success'}`}>
+                      {usuarioAsociado.role.charAt(0).toUpperCase() + usuarioAsociado.role.slice(1)}
+                    </span>
+                  </p>
+                </div>
+                <div className="col-md-4 mb-2">
+                  <label className="text-muted small">Nombre completo</label>
+                  <p className="fs-5 mb-0">{usuarioAsociado.nombre_completo}</p>
+                </div>
+              </div>
+            </div>
+          ) : !showUserForm ? (
+            <div className="text-center text-muted py-3">
+              <i className="fas fa-user-lock fs-1"></i>
+              <p className="mb-0 mt-2">Este empleado aún no tiene usuario del sistema</p>
+              <small>Haz clic en "Crear Usuario" para darle acceso</small>
+            </div>
+          ) : (
+            <form onSubmit={handleCreateUser}>
+              <div className="alert alert-info mb-3">
+                <small>
+                  <i className="fas fa-info-circle me-2"></i>
+                  El rol se asignará automáticamente según el puesto: <strong>{empleado.puesto}</strong>
+                  {' → '}
+                  <strong>
+                    {(empleado.puesto || '').toLowerCase().includes('cobrador') ? 'Cobrador' : 'Vendedor'}
+                  </strong>
+                </small>
+              </div>
+              <div className="row">
+                <div className="col-md-6 mb-3">
+                  <label className="form-label">Usuario *</label>
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Nombre de usuario"
+                    required
+                  />
+                </div>
+                <div className="col-md-6 mb-3">
+                  <label className="form-label">Contraseña *</label>
+                  <input 
+                    type="password" 
+                    className="form-control" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Contraseña segura"
+                    required
+                  />
+                </div>
+              </div>
+              {userMessage && (
+                <div className={`alert alert-${userMessage.type === 'success' ? 'success' : 'danger'} mb-3`}>
+                  {userMessage.text}
+                </div>
+              )}
+              <div className="d-flex gap-2">
+                <button type="submit" className="btn btn-primary">
+                  <i className="fas fa-save"></i> Crear Usuario
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => {
+                    setShowUserForm(false);
+                    setUsername('');
+                    setPassword('');
+                    setUserMessage(null);
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
 

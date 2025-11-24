@@ -17,6 +17,7 @@ import useSettingsStore from './stores/useSettingsStore';
 function App({ onLogout }) {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
+  const [role, setRole] = useState(localStorage.getItem('role') || 'admin');
   const [stats, setStats] = useState({
     totalClientes: 0,
     totalPrestamos: 0,
@@ -35,6 +36,7 @@ function App({ onLogout }) {
     // Obtener usuario
     const storedUsername = localStorage.getItem('username');
     setUsername(storedUsername || 'Usuario');
+    setRole(localStorage.getItem('role') || 'admin');
 
     // Cargar datos del dashboard
     loadDashboardData();
@@ -160,7 +162,7 @@ function App({ onLogout }) {
     navigate(ruta);
   };
 
-  const menuItems = [
+  let menuItems = [
     {
       title: 'Gestión de Clientes',
       description: 'Ver, agregar y administrar clientes',
@@ -195,6 +197,7 @@ function App({ onLogout }) {
 
   // Agregar nueva tarjeta: Empleados (morado, con emoji)
   // Mover Resumen al área principal (en lugar de Empleados)
+  // Filtrado posterior por rol
   menuItems.push({
     title: 'Resumen Financiero',
     description: 'Ve las estadísticas completas y métricas del negocio',
@@ -207,6 +210,7 @@ function App({ onLogout }) {
   });
 
   // Tarjeta de Caja
+  // Filtrado por rol más abajo
   menuItems.push({
     title: 'Caja Diaria',
     description: 'Consulta ingresos, egresos y saldo de caja',
@@ -218,6 +222,24 @@ function App({ onLogout }) {
     statLabel: 'Hoy'
   });
 
+
+  // Filtrar tarjetas según rol
+  if (role === 'vendedor') {
+    // ver clientes, prestamos, pagos, caja, resumen
+    menuItems = menuItems.filter(mi => (
+      mi.title.includes('Clientes') ||
+      mi.title.includes('Préstamos') ||
+      mi.title.includes('Pagos') ||
+      mi.title.includes('Caja') ||
+      mi.title.includes('Resumen')
+    ));
+  } else if (role === 'cobrador') {
+    // solo pagos y resumen
+    menuItems = menuItems.filter(mi => (
+      mi.title.includes('Pagos') ||
+      mi.title.includes('Resumen')
+    ));
+  } // admin ve todo
 
   if (loading) {
     return (

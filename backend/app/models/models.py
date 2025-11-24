@@ -14,6 +14,8 @@ class Usuario(Base):
     telefono = Column(String(20))
     direccion = Column(String(200))
     email = Column(String(100))
+    role = Column(String(20), default="admin")  # admin | vendedor | cobrador
+    empleado_id = Column(Integer, ForeignKey("empleados.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

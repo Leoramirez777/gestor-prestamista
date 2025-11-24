@@ -20,7 +20,8 @@ def create_admin_user():
         admin_user = Usuario(
             username="admin",
             hashed_password=hashed_password,
-            nombre_completo="Administrador"
+            nombre_completo="Administrador",
+            role="admin"
         )
         db.add(admin_user)
         db.commit()
