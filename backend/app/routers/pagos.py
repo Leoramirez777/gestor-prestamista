@@ -6,6 +6,7 @@ from app.database.database import get_db
 from app.models.models import Pago, Prestamo, PagoCobrador, PagoVendedor, PrestamoVendedor, Empleado, MovimientoCaja, Cliente, Usuario
 from app.schemas.schemas import Pago as PagoSchema, PagoCreate, PagoCobrador as PagoCobradorSchema, PagoVendedor as PagoVendedorSchema
 from app.caja_service import actualizar_totales_cierre, get_or_create_cierre
+from app.models.models import CajaEmpleadoMovimiento
 from app.routers.auth import get_current_user
 
 router = APIRouter()
@@ -77,12 +78,19 @@ def get_pagos_by_prestamo(prestamo_id: int, db: Session = Depends(get_db)):
     return pagos
 
 @router.post("/", response_model=PagoSchema, status_code=status.HTTP_201_CREATED)
-def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
+def create_pago(pago: PagoCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
     """Registrar un nuevo pago con sistema de cuotas"""
     # Verificar que el préstamo existe
     prestamo = db.query(Prestamo).filter(Prestamo.id == pago.prestamo_id).first()
     if not prestamo:
         raise HTTPException(status_code=404, detail="Préstamo no encontrado")
+
+    # Regla: si el usuario es cobrador solo puede registrar pagos de préstamos creados por admin
+    # Implementación: préstamos con cualquier registro en PrestamoVendedor se consideran de vendedor
+    if current_user.role == 'cobrador':
+        existe_vendedor = db.query(PrestamoVendedor).filter(PrestamoVendedor.prestamo_id == prestamo.id).first()
+        if existe_vendedor:
+            raise HTTPException(status_code=403, detail="El cobrador solo puede cobrar préstamos creados por Admin (este préstamo tiene vendedor asociado)")
     
     # Verificar que el monto no exceda el saldo pendiente
     if pago.monto > prestamo.saldo_pendiente:
@@ -95,10 +103,13 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     pago_data = pago.model_dump()
     pago_data['fecha_pago'] = date.today()  # Forzar fecha de hoy
     
-    # Extraer campos que NO pertenecen al modelo Pago
+    # Extraer campos que NO pertenecen al modelo Pago (metadatos de cobrador)
     cobrador_id = pago_data.pop('cobrador_id', None)
     cobrador_nombre = pago_data.pop('cobrador_nombre', None)
     porcentaje_cobrador = pago_data.pop('porcentaje_cobrador', None)
+    # Si el usuario autenticado es cobrador y no se especificó cobrador_id, asignarlo automáticamente
+    if not cobrador_id and getattr(current_user, 'role', None) == 'cobrador' and current_user.empleado_id:
+        cobrador_id = current_user.empleado_id
     
     # Bloquear si el día está cerrado
     cierre_hoy = get_or_create_cierre(db, pago_data['fecha_pago'])
@@ -184,6 +195,28 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     )
     db.add(movimiento_caja)
     db.commit()
+
+    # Movimiento empleado (ingreso por pago) si hay cobrador (explícito o automático)
+    if cobrador_id:
+        existe_emp_mov = db.query(CajaEmpleadoMovimiento).filter(
+            CajaEmpleadoMovimiento.empleado_id == cobrador_id,
+            CajaEmpleadoMovimiento.referencia_tipo == 'pago',
+            CajaEmpleadoMovimiento.referencia_id == db_pago.id,
+            CajaEmpleadoMovimiento.tipo == 'ingreso'
+        ).first()
+        if not existe_emp_mov:
+            mov_emp_ing = CajaEmpleadoMovimiento(
+                fecha=db_pago.fecha_pago,
+                empleado_id=cobrador_id,
+                tipo='ingreso',
+                categoria='pago',
+                descripcion=f"Pago #{db_pago.id} préstamo {db_pago.prestamo_id}",
+                monto=db_pago.monto,
+                referencia_tipo='pago',
+                referencia_id=db_pago.id
+            )
+            db.add(mov_emp_ing)
+            db.commit()
     
     # Actualizar totales del cierre del día
     actualizar_totales_cierre(db, db_pago.fecha_pago)
@@ -192,7 +225,7 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
     if porcentaje_cobrador is not None:
         if porcentaje_cobrador < 0 or porcentaje_cobrador > 100:
             raise HTTPException(status_code=400, detail="El porcentaje del cobrador debe estar entre 0 y 100")
-    if porcentaje_cobrador and float(porcentaje_cobrador) > 0:
+    if cobrador_id and porcentaje_cobrador and float(porcentaje_cobrador) > 0:
         porcentaje = float(porcentaje_cobrador)
         monto_comision = round(float(pago.monto) * porcentaje / 100.0, 2)
 
@@ -225,6 +258,28 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db)):
         )
         db.add(mov_comision_cobrador)
         db.commit()
+        # Movimiento empleado (egreso comisión) para reflejar retención
+        if cobrador_id:
+            existe_emp_com = db.query(CajaEmpleadoMovimiento).filter(
+                CajaEmpleadoMovimiento.empleado_id == cobrador_id,
+                CajaEmpleadoMovimiento.referencia_tipo == 'pago',
+                CajaEmpleadoMovimiento.referencia_id == db_pago.id,
+                CajaEmpleadoMovimiento.tipo == 'egreso',
+                CajaEmpleadoMovimiento.categoria == 'comision'
+            ).first()
+            if not existe_emp_com:
+                mov_emp_com = CajaEmpleadoMovimiento(
+                    fecha=db_pago.fecha_pago,
+                    empleado_id=cobrador_id,
+                    tipo='egreso',
+                    categoria='comision',
+                    descripcion=f"Comisión cobrador pago #{db_pago.id}",
+                    monto=monto_comision,
+                    referencia_tipo='pago',
+                    referencia_id=db_pago.id
+                )
+                db.add(mov_emp_com)
+                db.commit()
         actualizar_totales_cierre(db, db_pago.fecha_pago)
 
     # Registrar comisión del vendedor si existe en el préstamo

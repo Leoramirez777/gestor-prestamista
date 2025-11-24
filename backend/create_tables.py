@@ -5,7 +5,8 @@ from app.database.database import engine, Base
 from app.models.models import (
     Usuario, Cliente, Prestamo, Pago, Empleado,
     PagoCobrador, PagoVendedor, PrestamoVendedor,
-    MovimientoCaja, CajaCierre
+    MovimientoCaja, CajaCierre,
+    CajaEmpleadoMovimiento, CajaEmpleadoCierre
 )
 
 def create_tables():

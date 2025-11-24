@@ -23,13 +23,15 @@ import Caja from './pages/Caja.jsx'
 import { isAuthenticated } from './api/auth.js'
 
 function AppRouter() {
-  // Comienza siempre en estado no autenticado para forzar paso por /login
-  const [isAuth, setIsAuth] = useState(false);
+  // Inicializa según el token persistido para evitar redirección inicial errónea
+  const [isAuth, setIsAuth] = useState(isAuthenticated());
 
   // Verifica token existente (si lo hubiera) tras montar y lo activa solo si es válido
   useEffect(() => {
     if (isAuthenticated()) {
       setIsAuth(true);
+    } else {
+      setIsAuth(false);
     }
   }, []);
 

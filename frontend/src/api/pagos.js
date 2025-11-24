@@ -52,3 +52,14 @@ export async function previewPagoCobrador({ monto, porcentaje }) {
     handleApiError(err);
   }
 }
+
+export async function fetchPagoVendedor(id) {
+  try {
+    const { data } = await api.get(`/api/pagos/${id}/vendedor`);
+    return data; // PagoVendedor registro
+  } catch (err) {
+    // Si 404, simplemente no hay comisión para ese pago
+    if (err.message && err.message.includes('404')) return null;
+    handleApiError(err);
+  }
+}

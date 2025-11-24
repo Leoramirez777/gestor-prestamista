@@ -20,6 +20,7 @@ export default function PerfilEmpleado() {
   const [userMessage, setUserMessage] = useState(null);
   const [usuarioAsociado, setUsuarioAsociado] = useState(null);
   const [loadingUsuario, setLoadingUsuario] = useState(true);
+  // Ganancias trasladadas al dashboard (Resumen), ya no se muestran aquí
 
   useEffect(() => {
     const load = async () => {
@@ -246,6 +247,7 @@ export default function PerfilEmpleado() {
           <div className="alert alert-light border mt-3 mb-0">
             <small className="text-muted">Las comisiones del cobrador se calculan automáticamente al registrar pagos con la opción Cobrador activada.</small>
           </div>
+          {/* Ganancias removidas: ahora disponibles en el Dashboard (Resumen) */}
         </div>
       </div>
 

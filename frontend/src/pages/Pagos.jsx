@@ -13,6 +13,7 @@ import useSettingsStore from '../stores/useSettingsStore';
 export default function Pagos() {
   const navigate = useNavigate();
   const location = useLocation();
+  const role = typeof window !== 'undefined' ? (localStorage.getItem('role') || 'admin') : 'admin';
   const [pagos, setPagos] = useState([]);
   const [prestamos, setPrestamos] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -167,6 +168,8 @@ export default function Pagos() {
 
   // Cargar información de cobradores para todos los pagos
   const loadCobradoresInfo = async (pagosList) => {
+    // Si el rol actual es vendedor, no cargamos información de cobradores
+    if (role === 'vendedor') { setCobradoresMap({}); return; }
     const cobradoresData = {};
     for (const pago of pagosList) {
       try {
@@ -540,6 +543,7 @@ export default function Pagos() {
                 className="form-select"
                 value={filtros.cobrador}
                 onChange={(e) => setFiltros({ ...filtros, cobrador: e.target.value })}
+                disabled={role === 'vendedor'}
               >
                 <option value="todos">Todos los pagos</option>
                 <option value="si">Con cobrador</option>
@@ -550,6 +554,7 @@ export default function Pagos() {
                   ))}
                 </optgroup>
               </select>
+              {role === 'vendedor' && <div className="form-text">Vista vendedor: filtrado por cobrador deshabilitado.</div>}
             </div>
           </div>
           <div className="mt-3 d-flex justify-content-between align-items-center">
@@ -686,13 +691,15 @@ export default function Pagos() {
                           </span>
                         </td>
                         <td>
-                          {cobradoresMap[pago.id] ? (
-                            <span className="badge" style={{ backgroundColor: '#ffc107', color: '#000' }}>
-                              {cobradoresMap[pago.id].nombre}
-                            </span>
-                          ) : (
-                            <span className="text-muted">No</span>
-                          )}
+                            {role === 'vendedor' ? (
+                              <span className="text-muted">-</span>
+                            ) : cobradoresMap[pago.id] ? (
+                              <span className="badge" style={{ backgroundColor: '#ffc107', color: '#000' }}>
+                                {cobradoresMap[pago.id].nombre}
+                              </span>
+                            ) : (
+                              <span className="text-muted">No</span>
+                            )}
                         </td>
                         <td>
                           <div className="btn-group">
@@ -804,6 +811,11 @@ export default function Pagos() {
                     {prestamos.filter(p => Number(p.saldo_pendiente) > 0).length === 0 && (
                       <div className="form-text text-danger">
                         No hay préstamos activos con saldo pendiente
+                      </div>
+                    )}
+                    {role === 'cobrador' && prestamos.length === 0 && (
+                      <div className="form-text text-warning">
+                        Ningún préstamo disponible: solo puedes cobrar préstamos creados por Admin (se excluyen los que tienen vendedor asociado).
                       </div>
                     )}
                   </div>

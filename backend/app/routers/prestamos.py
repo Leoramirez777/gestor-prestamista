@@ -35,6 +35,15 @@ def get_prestamos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
             prestamos = db.query(Prestamo).offset(skip).limit(limit).all()
             return prestamos
         
+        # Si es cobrador: puede ver (y luego cobrar) solo préstamos creados por admin
+        # Regla implementada: préstamos SIN registro en PrestamoVendedor (ningún vendedor asociado)
+        if current_user.role == 'cobrador':
+            from sqlalchemy import exists
+            # Subconsulta de IDs con vendedor
+            vendedores_subq = db.query(PrestamoVendedor.prestamo_id).distinct().subquery()
+            prestamos = db.query(Prestamo).filter(~Prestamo.id.in_(vendedores_subq)).offset(skip).limit(limit).all()
+            return prestamos
+        
         # Si es vendedor, solo ve préstamos donde está asignado como vendedor
         if not current_user.empleado_id:
             return []

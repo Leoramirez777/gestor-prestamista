@@ -86,16 +86,27 @@ def get_summary_metrics(db: Session, empleado_id: Optional[int] = None) -> dict:
     # Calcular tasa de activación (clientes con préstamos activos / total clientes)
     activation_rate = (clientes_activos / total_clientes) if total_clientes > 0 else 0.0
     
-    # Calcular comisiones (totales históricas)
+    # Calcular comisiones (totales históricas globales)
     total_comisiones_vendedor = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).scalar() or 0.0
     total_comisiones_cobrador = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).scalar() or 0.0
     total_comisiones = total_comisiones_vendedor + total_comisiones_cobrador
+
+    # Si se filtra por empleado, calcular sus ganancias históricas (todas las comisiones)
+    mis_ganancias = None
+    if empleado_id:
+        mis_vendedor = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).filter(
+            PagoVendedor.empleado_id == empleado_id
+        ).scalar() or 0.0
+        mis_cobrador = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).filter(
+            PagoCobrador.empleado_id == empleado_id
+        ).scalar() or 0.0
+        mis_ganancias = round(mis_vendedor + mis_cobrador, 2)
     
     # Ganancias netas sin intereses: recaudado - comisiones pagadas.
     ganancias_netas = monto_total_recaudado - total_comisiones
     tasa_cobro = min(monto_total_recaudado / monto_total_esperado, 1.0) if monto_total_esperado > 0 else 0.0
 
-    return {
+    result = {
         'timestamp': today.isoformat(),
         'total_clientes': total_clientes,
         'total_prestamos': total_prestamos,
@@ -121,6 +132,11 @@ def get_summary_metrics(db: Session, empleado_id: Optional[int] = None) -> dict:
         'intereses_generados': round(intereses_generados, 2),
         'tasa_cobro': round(tasa_cobro, 4)
     }
+
+    if mis_ganancias is not None:
+        result['mis_ganancias'] = mis_ganancias
+
+    return result
 
 
 def get_due_today(db: Session) -> dict:
@@ -332,19 +348,33 @@ def get_period_metrics(db: Session, period_type: str, start_date: date, end_date
         print(f"Error en cálculo de por_cobrar: {e}")
         por_cobrar = 0.0
 
-    # Comisiones pagadas en el período
-    comisiones_pagadas_vendedor = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).join(
+    # Comisiones pagadas en el período (filtradas por empleado si corresponde)
+    comisiones_vendedor_query = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).join(
         Pago, PagoVendedor.pago_id == Pago.id
-    ).filter(Pago.fecha_pago >= start_date, Pago.fecha_pago <= end_date).scalar() or 0.0
-    comisiones_pagadas_cobrador = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).join(
+    ).filter(Pago.fecha_pago >= start_date, Pago.fecha_pago <= end_date)
+    comisiones_cobrador_query = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).join(
         Pago, PagoCobrador.pago_id == Pago.id
-    ).filter(Pago.fecha_pago >= start_date, Pago.fecha_pago <= end_date).scalar() or 0.0
+    ).filter(Pago.fecha_pago >= start_date, Pago.fecha_pago <= end_date)
+    if empleado_id:
+        comisiones_vendedor_query = comisiones_vendedor_query.filter(PagoVendedor.empleado_id == empleado_id)
+        comisiones_cobrador_query = comisiones_cobrador_query.filter(PagoCobrador.empleado_id == empleado_id)
+    comisiones_pagadas_vendedor = comisiones_vendedor_query.scalar() or 0.0
+    comisiones_pagadas_cobrador = comisiones_cobrador_query.scalar() or 0.0
     comisiones_pagadas = comisiones_pagadas_vendedor + comisiones_pagadas_cobrador
     
     # Tasa de cobro: cobrado vs monto total esperado del período
     tasa_cobro_periodo = min(cobrado / prestado_con_intereses, 1.0) if prestado_con_intereses > 0 else 0.0
     
-    ganancias_netas = cobrado - comisiones_pagadas
+    # Cálculo de ganancias del período
+    # Si es vista de EMPLEADO: las "ganancias" son simplemente sus comisiones cobradas en el período (vendedor + cobrador).
+    # Si es vista ADMIN: ganancias = parte de intereses recuperados en los pagos del período - comisiones pagadas (no debe ser negativa).
+    if empleado_id:
+        intereses_cobrados_periodo = 0.0  # No relevante para empleado en este contexto
+        ganancias_netas = comisiones_pagadas  # Sus comisiones siempre son positivas
+    else:
+        # Aproximación: intereses recuperados en el período = max(0, cobrado - prestado)
+        intereses_cobrados_periodo = max(0.0, cobrado - prestado)
+        ganancias_netas = max(intereses_cobrados_periodo - comisiones_pagadas, 0.0)
 
     return {
         'start_date': start_date.isoformat(),
@@ -353,7 +383,10 @@ def get_period_metrics(db: Session, period_type: str, start_date: date, end_date
         'prestado_con_intereses': round(prestado_con_intereses, 2),
         'por_cobrar': round(por_cobrar, 2),
         'cobrado': round(cobrado, 2),
-        'comisiones_pagadas': round(comisiones_pagadas, 2),
+        'comisiones_pagadas': round(comisiones_pagadas, 2),  # total (filtrado si empleado)
+        'comisiones_vendedor_periodo': round(comisiones_pagadas_vendedor, 2),
+        'comisiones_cobrador_periodo': round(comisiones_pagadas_cobrador, 2),
+        'intereses_cobrados_periodo': round(intereses_cobrados_periodo, 2),
         'intereses_generados': round(intereses_generados, 2),
         'tasa_cobro': round(tasa_cobro_periodo, 4),
         'ganancias_netas': round(ganancias_netas, 2)
@@ -381,11 +414,26 @@ def get_expectativas(db: Session, start_date: date, end_date: Optional[date] = N
     prestamos_activos = prestamos_activos_query.all()
     monto_esperado = 0.0
     cantidad_cuotas = 0
+    ganancias_esperadas = 0.0
 
     try:
         for prestamo in prestamos_activos:
             try:
                 amortizacion = generar_amortizacion(prestamo, db)
+                # Si se solicita por empleado (vendedor), calcular su comisión esperada distribuida por cuota
+                per_cuota_comision = 0.0
+                if empleado_id:
+                    try:
+                        reg = db.query(PrestamoVendedor).filter(
+                            PrestamoVendedor.prestamo_id == prestamo.id,
+                            PrestamoVendedor.empleado_id == empleado_id
+                        ).first()
+                        if reg and (reg.monto_comision or 0) > 0:
+                            total_cuotas = prestamo.cuotas_totales or len(amortizacion) or 0
+                            if total_cuotas > 0:
+                                per_cuota_comision = float(reg.monto_comision) / float(total_cuotas)
+                    except Exception as e:
+                        print(f"Error obteniendo comisión vendedor para préstamo {prestamo.id}: {e}")
                 for cuota in amortizacion:
                     from datetime import datetime as dt
                     fecha_cuota = dt.fromisoformat(cuota['fecha']).date()
@@ -393,6 +441,8 @@ def get_expectativas(db: Session, start_date: date, end_date: Optional[date] = N
                         if cuota['estado'] != 'Pagado':  # Solo cuotas pendientes o vencidas
                             monto_esperado += cuota['monto']
                             cantidad_cuotas += 1
+                            if per_cuota_comision > 0:
+                                ganancias_esperadas += per_cuota_comision
             except Exception as e:
                 print(f"Error procesando expectativas para préstamo {prestamo.id}: {e}")
                 continue
@@ -400,22 +450,18 @@ def get_expectativas(db: Session, start_date: date, end_date: Optional[date] = N
         print(f"Error en get_expectativas: {e}")
         monto_esperado = 0.0
         cantidad_cuotas = 0
+        ganancias_esperadas = 0.0
 
-    # Estimar comisiones esperadas (promedio basado en cuotas programadas)
-    total_recaudado_historico = db.query(func.coalesce(func.sum(Pago.monto), 0)).scalar() or 0.0
-    total_comisiones_historicas = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).scalar() or 0.0
-    total_comisiones_historicas += db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).scalar() or 0.0
-
-    tasa_comision = (total_comisiones_historicas / total_recaudado_historico) if total_recaudado_historico > 0 else 0.0
-    comisiones_esperadas = monto_esperado * tasa_comision
-
-    return {
+    result = {
         'start_date': start_date.isoformat(),
         'end_date': end_date.isoformat(),
         'monto_esperado': round(monto_esperado, 2),
-        'cantidad_cuotas': cantidad_cuotas,
-        'comisiones_esperadas': round(comisiones_esperadas, 2)
+        'cantidad_cuotas': cantidad_cuotas
     }
+    # Solo tiene sentido reportar ganancias_esperadas cuando filtramos por un vendedor
+    if empleado_id:
+        result['ganancias_esperadas'] = round(ganancias_esperadas, 2)
+    return result
 
 
 def get_segment_metrics(db: Session, dimension: str, start_date: Optional[date] = None, end_date: Optional[date] = None) -> dict:

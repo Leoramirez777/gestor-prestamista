@@ -147,6 +147,15 @@ class Empleado(EmpleadoBase):
     class Config:
         from_attributes = True
 
+class GananciasEmpleado(BaseModel):
+    empleado_id: int
+    start_date: date
+    end_date: date
+    total_comisiones_vendedor: float
+    total_comisiones_cobrador: float
+    ganancias_netas: float  # suma total de comisiones
+    rol: str | None = None
+
 
 # ===== COMISION COBRADOR (respuesta)
 class PagoCobrador(BaseModel):
@@ -197,6 +206,7 @@ class SummaryMetrics(BaseModel):
     comisiones: dict  # {vendedor, cobrador, total}
     intereses_generados: float
     tasa_cobro: float | None = None  # ratio cobrado / esperado (0-1)
+    mis_ganancias: float | None = None  # Ganancias históricas (todas las comisiones) del empleado si vista filtrada por empleado
 
 class KPIMetrics(BaseModel):
     timestamp: str
@@ -305,3 +315,47 @@ class SegmentResponse(BaseModel):
     end_date: Optional[date] = None
     total_prestamos: int
     items: list[SegmentItem]
+
+
+# ===== CAJA EMPLEADO =====
+class CajaEmpleadoMovimientoCreate(BaseModel):
+    fecha: date
+    tipo: str  # ingreso | egreso
+    monto: float
+    categoria: Optional[str] = None  # deposito_caja | otros
+    descripcion: Optional[str] = None
+
+class CajaEmpleadoMovimiento(BaseModel):
+    id: int
+    fecha: date
+    empleado_id: int
+    tipo: str
+    categoria: Optional[str] = None
+    descripcion: Optional[str] = None
+    monto: float
+    referencia_tipo: Optional[str] = None
+    referencia_id: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class CajaEmpleadoResumen(BaseModel):
+    fecha: date
+    empleado_id: int
+    ingresos_cobrados: float
+    comision_ganada: float
+    ingresos_otros: float
+    egresos: float
+    depositos: float
+    saldo_esperado_entregar: float
+    entregado: Optional[float] = None
+    diferencia: Optional[float] = None
+    cerrado: bool
+
+class CajaEmpleadoCerrarRequest(BaseModel):
+    fecha: date
+    entregado: float
+
+class CajaEmpleadoAbrirRequest(BaseModel):
+    fecha: date

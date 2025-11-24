@@ -53,3 +53,15 @@ export async function fetchComisionesVendedorEmpleado(empleadoId) {
     handleApiError(err);
   }
 }
+
+export async function fetchGananciasEmpleado(empleadoId, { startDate = null, endDate = null } = {}) {
+  try {
+    const params = {};
+    if (startDate) params.start_date = startDate;
+    if (endDate) params.end_date = endDate;
+    const { data } = await api.get(`/api/empleados/${empleadoId}/ganancias`, { params });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

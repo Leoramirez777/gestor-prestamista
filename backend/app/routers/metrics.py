@@ -98,7 +98,8 @@ def metrics_period_month(month: str = Query(...), db: Session = Depends(get_db),
 def expectativas_date(date: str = Query(...), db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
     """Expectativas de cobro para una fecha específica."""
     target_date = datetime.strptime(date, '%Y-%m-%d').date()
-    empleado_id = None if current_user.role == 'admin' else current_user.empleado_id
+    # Solo filtrar por empleado si es vendedor; cobradores no tienen asignación de préstamos
+    empleado_id = current_user.empleado_id if current_user.role == 'vendedor' else None
     return get_expectativas(db, target_date, empleado_id=empleado_id)
 
 
@@ -107,7 +108,7 @@ def expectativas_week(start_date: str = Query(...), end_date: str = Query(...), 
     """Expectativas de cobro para una semana específica."""
     start = datetime.strptime(start_date, '%Y-%m-%d').date()
     end = datetime.strptime(end_date, '%Y-%m-%d').date()
-    empleado_id = None if current_user.role == 'admin' else current_user.empleado_id
+    empleado_id = current_user.empleado_id if current_user.role == 'vendedor' else None
     return get_expectativas(db, start, end, empleado_id=empleado_id)
 
 
@@ -119,7 +120,7 @@ def expectativas_month(month: str = Query(...), db: Session = Depends(get_db), c
     # Último día del mes usando monthrange
     _, last_day = monthrange(year, month_num)
     end = date(year, month_num, last_day)
-    empleado_id = None if current_user.role == 'admin' else current_user.empleado_id
+    empleado_id = current_user.empleado_id if current_user.role == 'vendedor' else None
     return get_expectativas(db, start, end, empleado_id=empleado_id)
 
 

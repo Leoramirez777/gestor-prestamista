@@ -129,11 +129,15 @@ function Resumen() {
           <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-calculator"></i></div><div className="metric-info"><span className="metric-label">Préstamo Promedio</span><span className="metric-value">{formatCurrency(summary.average_loan_size || 0)}</span></div></div>
         </div>
         <div className="metric-row mt-3">
-          {localStorage.getItem('role') === 'admin' && (
+          {localStorage.getItem('role') === 'admin' ? (
             <>
               <div className="metric-cell"><div className="metric-icon-circle teal" style={{backgroundColor:'#20c997'}}><i className="fas fa-receipt"></i></div><div className="metric-info"><span className="metric-label">Comisiones Pagadas</span><span className="metric-value">{formatCurrency(summary.total_comisiones_pagadas || 0)}</span></div></div>
               <div className="metric-cell"><div className="metric-icon-circle dark" style={{backgroundColor:'#343a40'}}><i className="fas fa-coins"></i></div><div className="metric-info"><span className="metric-label">Ganancias Netas</span><span className="metric-value">{formatCurrency(summary.ganancias_netas || 0)}</span></div></div>
             </>
+          ) : (
+            summary.mis_ganancias !== undefined && (
+              <div className="metric-cell"><div className="metric-icon-circle dark" style={{backgroundColor:'#343a40'}}><i className="fas fa-coins"></i></div><div className="metric-info"><span className="metric-label">Mis Ganancias Totales</span><span className="metric-value">{formatCurrency(summary.mis_ganancias || 0)}</span></div></div>
+            )
           )}
           <div className="metric-cell"><div className="metric-icon-circle orange" style={{backgroundColor:'#fd7e14'}}><i className="fas fa-chart-line"></i></div><div className="metric-info"><span className="metric-label">Intereses Generados</span><span className="metric-value">{formatCurrency(summary.intereses_generados || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle blue" style={{backgroundColor:'#0d6efd'}}><i className="fas fa-percentage"></i></div><div className="metric-info"><span className="metric-label">Tasa Cobro</span><span className="metric-value">{percentDisplay(summary.tasa_cobro || 0)}</span></div></div>
@@ -166,9 +170,7 @@ function Resumen() {
         <div className="metric-row mt-3">
           <div className="metric-cell"><div className="metric-icon-circle orange"><i className="fas fa-chart-line"></i></div><div className="metric-info"><span className="metric-label">Intereses Generados</span><span className="metric-value">{formatCurrency(periodData.intereses_generados || ((periodData.prestado_con_intereses || 0) - (periodData.prestado || 0)))}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-percentage"></i></div><div className="metric-info"><span className="metric-label">Tasa Cobro</span><span className="metric-value">{periodData.prestado_con_intereses > 0 ? ((periodData.cobrado || 0) / periodData.prestado_con_intereses * 100).toFixed(1) + '%' : '0%'}</span></div></div>
-          {localStorage.getItem('role') === 'admin' && (
-            <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-balance-scale"></i></div><div className="metric-info"><span className="metric-label">Ganancias Netas</span><span className="metric-value">{formatCurrency((periodData.ganancias_netas !== undefined ? periodData.ganancias_netas : (periodData.cobrado || 0) - (periodData.comisiones_pagadas || 0)))}</span></div></div>
-          )}
+          <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-balance-scale"></i></div><div className="metric-info"><span className="metric-label">Ganancias del Período</span><span className="metric-value">{formatCurrency((periodData.ganancias_netas !== undefined ? periodData.ganancias_netas : (periodData.cobrado || 0) - (periodData.comisiones_pagadas || 0)))}</span></div></div>
         </div>
       </div>
       <div className="section-header mb-3">
@@ -193,10 +195,9 @@ function Resumen() {
           <div className="metric-cell"><div className="metric-icon-circle orange"><i className="fas fa-dollar-sign"></i></div><div className="metric-info"><span className="metric-label">Monto Esperado</span><span className="metric-value">{formatCurrency(expectativas.monto_esperado || 0)}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle blue"><i className="fas fa-list-ol"></i></div><div className="metric-info"><span className="metric-label">Cantidad de Cuotas</span><span className="metric-value">{expectativas.cantidad_cuotas || 0}</span></div></div>
           <div className="metric-cell"><div className="metric-icon-circle green"><i className="fas fa-calculator"></i></div><div className="metric-info"><span className="metric-label">Promedio por Cuota</span><span className="metric-value">{expectativas.cantidad_cuotas > 0 ? formatCurrency((expectativas.monto_esperado || 0) / expectativas.cantidad_cuotas) : formatCurrency(0)}</span></div></div>
-          <div className="metric-cell"><div className="metric-icon-circle purple"><i className="fas fa-calendar-check"></i></div><div className="metric-info"><span className="metric-label">Período</span><span className="metric-value text-uppercase" style={{fontSize:'0.9rem'}}>{expectativasTab === 'fecha' ? 'Diario' : expectativasTab === 'semana' ? 'Semanal' : 'Mensual'}</span></div></div>
-        </div>
-        <div className="metric-row mt-3">
-          <div className="metric-cell"><div className="metric-icon-circle red"><i className="fas fa-hand-holding-usd"></i></div><div className="metric-info"><span className="metric-label">Comisiones Esperadas</span><span className="metric-value">{formatCurrency(expectativas.comisiones_esperadas || 0)}</span></div></div>
+          {localStorage.getItem('role') !== 'admin' && expectativas.ganancias_esperadas !== undefined && (
+            <div className="metric-cell"><div className="metric-icon-circle dark" style={{backgroundColor:'#343a40'}}><i className="fas fa-coins"></i></div><div className="metric-info"><span className="metric-label">Ganancias Esperadas</span><span className="metric-value">{formatCurrency(expectativas.ganancias_esperadas || 0)}</span></div></div>
+          )}
         </div>
       </div>
     </>
@@ -317,7 +318,8 @@ function Resumen() {
           { label: "Ganancias Netas", desc: "Cobrado menos comisiones pagadas (no incluye penalizaciones de mora)." },
           { label: "Monto Esperado", desc: "Total de cuotas programadas para cobrar en el período." },
           { label: "Cantidad de Cuotas", desc: "Número de cuotas que vencen en el período." },
-          { label: "Promedio por Cuota", desc: "Promedio del monto de cada cuota en el período." }
+          { label: "Promedio por Cuota", desc: "Promedio del monto de cada cuota en el período." },
+          { label: "Ganancias del Período", desc: "Si eres empleado: tus comisiones cobradas en el período. Si eres admin: intereses recuperados en los pagos del período menos comisiones pagadas (nunca negativo)." }
         ];
       case 'rentabilidad':
         return [

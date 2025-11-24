@@ -164,3 +164,37 @@ class CajaCierre(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     closed_at = Column(DateTime, nullable=True)
 
+
+# === CAJA EMPLEADO (rendición) ===
+class CajaEmpleadoMovimiento(Base):
+    __tablename__ = "caja_empleado_movimientos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha = Column(Date, nullable=False)
+    empleado_id = Column(Integer, ForeignKey("empleados.id"), nullable=False)
+    tipo = Column(String(20), nullable=False)  # ingreso | egreso
+    categoria = Column(String(50), nullable=True)  # deposito_caja | adelanto | otros
+    descripcion = Column(String(200), nullable=True)
+    monto = Column(Float, nullable=False)
+    referencia_tipo = Column(String(30), nullable=True)  # pago | manual
+    referencia_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CajaEmpleadoCierre(Base):
+    __tablename__ = "caja_empleado_cierres"
+
+    id = Column(Integer, primary_key=True, index=True)
+    fecha = Column(Date, nullable=False, index=True)
+    empleado_id = Column(Integer, ForeignKey("empleados.id"), nullable=False, index=True)
+    ingresos_cobrados = Column(Float, default=0.0)  # pagos cobrados por el empleado
+    comision_ganada = Column(Float, default=0.0)
+    ingresos_otros = Column(Float, default=0.0)
+    egresos = Column(Float, default=0.0)  # incluye depósitos a caja
+    depositos = Column(Float, default=0.0)
+    saldo_esperado_entregar = Column(Float, default=0.0)
+    entregado = Column(Float, nullable=True)
+    diferencia = Column(Float, nullable=True)
+    cerrado = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+

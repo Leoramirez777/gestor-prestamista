@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.models.models import MovimientoCaja, Prestamo, Pago, CajaCierre, PagoVendedor, PagoCobrador, Cliente
+from app.models.models import MovimientoCaja, Prestamo, Pago, CajaCierre, PagoVendedor, PagoCobrador, Cliente, CajaEmpleadoMovimiento, CajaEmpleadoCierre, Empleado
 
 
 def backfill_caja_movimientos(db: Session):
@@ -48,6 +48,68 @@ def backfill_caja_movimientos(db: Session):
         creados += 1
 
     db.commit()
+    return creados
+
+
+def backfill_caja_empleado_movimientos(db: Session):
+    """Crea movimientos históricos para empleados (cobradores) por cada pago registrado,
+    si aún no existen movimientos vinculados a esos pagos.
+
+    Genera dos movimientos:
+      - ingreso (pago cobrado)
+      - egreso (comisión del cobrador) si existe registro PagoCobrador
+    """
+    creados = 0
+    pagos = db.query(Pago).all()
+    for pg in pagos:
+        # Buscar comisión cobrador asociada
+        pc = db.query(PagoCobrador).filter(PagoCobrador.pago_id == pg.id).first()
+        if not pc or not pc.empleado_id:
+            continue  # sin cobrador asociado
+        empleado_id = pc.empleado_id
+        # Verificar si ya existe movimiento ingreso por este pago
+        existente_ingreso = db.query(CajaEmpleadoMovimiento).filter(
+            CajaEmpleadoMovimiento.empleado_id == empleado_id,
+            CajaEmpleadoMovimiento.referencia_tipo == 'pago',
+            CajaEmpleadoMovimiento.referencia_id == pg.id,
+            CajaEmpleadoMovimiento.tipo == 'ingreso'
+        ).first()
+        if not existente_ingreso:
+            mov_in = CajaEmpleadoMovimiento(
+                fecha=pg.fecha_pago,
+                empleado_id=empleado_id,
+                tipo='ingreso',
+                categoria='pago',
+                descripcion=f"Pago #{pg.id} préstamo {pg.prestamo_id}",
+                monto=pg.monto,
+                referencia_tipo='pago',
+                referencia_id=pg.id
+            )
+            db.add(mov_in)
+            creados += 1
+        # Verificar movimiento egreso comisión
+        existente_comision = db.query(CajaEmpleadoMovimiento).filter(
+            CajaEmpleadoMovimiento.empleado_id == empleado_id,
+            CajaEmpleadoMovimiento.referencia_tipo == 'pago',
+            CajaEmpleadoMovimiento.referencia_id == pg.id,
+            CajaEmpleadoMovimiento.tipo == 'egreso',
+            CajaEmpleadoMovimiento.categoria == 'comision'
+        ).first()
+        if not existente_comision:
+            mov_out = CajaEmpleadoMovimiento(
+                fecha=pg.fecha_pago,
+                empleado_id=empleado_id,
+                tipo='egreso',
+                categoria='comision',
+                descripcion=f"Comisión cobrador pago #{pg.id} préstamo {pg.prestamo_id}",
+                monto=pc.monto_comision,
+                referencia_tipo='pago',
+                referencia_id=pg.id
+            )
+            db.add(mov_out)
+            creados += 1
+    if creados:
+        db.commit()
     return creados
 
 
@@ -281,3 +343,148 @@ def get_cierre_caja(db: Session, fecha: date):
             "flujo_del_dia": round(flujo_neto, 2)
         }
     }
+
+
+# ===== CAJA EMPLEADO =====
+def get_or_create_cierre_empleado(db: Session, fecha: date, empleado_id: int) -> CajaEmpleadoCierre:
+    cierre = db.query(CajaEmpleadoCierre).filter(
+        CajaEmpleadoCierre.fecha == fecha,
+        CajaEmpleadoCierre.empleado_id == empleado_id
+    ).first()
+    if not cierre:
+        cierre = CajaEmpleadoCierre(
+            fecha=fecha,
+            empleado_id=empleado_id,
+            ingresos_cobrados=0.0,
+            comision_ganada=0.0,
+            ingresos_otros=0.0,
+            egresos=0.0,
+            depositos=0.0,
+            saldo_esperado_entregar=0.0,
+            cerrado=False
+        )
+        db.add(cierre)
+        db.commit()
+        db.refresh(cierre)
+    return cierre
+
+
+def listar_movimientos_empleado_por_fecha(db: Session, fecha: date, empleado_id: int):
+    return db.query(CajaEmpleadoMovimiento).filter(
+        CajaEmpleadoMovimiento.fecha == fecha,
+        CajaEmpleadoMovimiento.empleado_id == empleado_id
+    ).order_by(CajaEmpleadoMovimiento.id.asc()).all()
+
+
+def crear_movimiento_empleado(db: Session, fecha: date, empleado_id: int, tipo: str, monto: float, categoria: str | None, descripcion: str | None):
+    cierre = get_or_create_cierre_empleado(db, fecha, empleado_id)
+    if cierre.cerrado:
+        raise ValueError("El día está cerrado para este empleado")
+    mov = CajaEmpleadoMovimiento(
+        fecha=fecha,
+        empleado_id=empleado_id,
+        tipo=tipo,
+        categoria=categoria,
+        descripcion=descripcion,
+        monto=monto,
+        referencia_tipo='manual',
+        referencia_id=None
+    )
+    db.add(mov)
+    db.commit()
+    # Si es un depósito a caja, reflejar ingreso en caja central
+    if tipo == 'egreso' and (categoria or '') == 'deposito_caja':
+        emp = db.query(Empleado).filter(Empleado.id == empleado_id).first()
+        desc = descripcion or f"Depósito de empleado #{empleado_id}{' - ' + emp.nombre if emp else ''}"
+        centro = MovimientoCaja(
+            fecha=fecha,
+            tipo='ingreso',
+            categoria='deposito_empleado',
+            descripcion=desc,
+            monto=monto,
+            referencia_tipo='empleado',
+            referencia_id=empleado_id
+        )
+        db.add(centro)
+        db.commit()
+    return mov
+
+
+def calcular_resumen_empleado(db: Session, fecha: date, empleado_id: int) -> CajaEmpleadoCierre:
+    cierre = get_or_create_cierre_empleado(db, fecha, empleado_id)
+    # Determinar puesto del empleado (Cobrador vs Vendedor)
+    emp = db.query(Empleado).filter(Empleado.id == empleado_id).first()
+    puesto = (emp.puesto or '').lower() if emp else ''
+
+    if puesto == 'vendedor':
+        # Vendedor: considerar como "Cobrado Hoy" el total de pagos de sus préstamos (pagos que generan su comisión)
+        ingresos_cobrados = db.query(func.coalesce(func.sum(Pago.monto), 0)).join(
+            PagoVendedor, Pago.id == PagoVendedor.pago_id
+        ).filter(
+            Pago.fecha_pago == fecha,
+            PagoVendedor.empleado_id == empleado_id
+        ).scalar() or 0.0
+        comision_ganada = db.query(func.coalesce(func.sum(PagoVendedor.monto_comision), 0)).join(
+            Pago, Pago.id == PagoVendedor.pago_id
+        ).filter(
+            Pago.fecha_pago == fecha,
+            PagoVendedor.empleado_id == empleado_id
+        ).scalar() or 0.0
+    else:
+        # Cobrador: suma de montos cobrados y comisiones de cobrador
+        ingresos_cobrados = db.query(func.coalesce(func.sum(Pago.monto), 0)).join(
+            PagoCobrador, Pago.id == PagoCobrador.pago_id
+        ).filter(
+            Pago.fecha_pago == fecha,
+            PagoCobrador.empleado_id == empleado_id
+        ).scalar() or 0.0
+        comision_ganada = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).join(
+            Pago, Pago.id == PagoCobrador.pago_id
+        ).filter(
+            Pago.fecha_pago == fecha,
+            PagoCobrador.empleado_id == empleado_id
+        ).scalar() or 0.0
+    movimientos = listar_movimientos_empleado_por_fecha(db, fecha, empleado_id)
+    ingresos_otros = sum(m.monto for m in movimientos if m.tipo == 'ingreso')
+    egresos = sum(m.monto for m in movimientos if m.tipo == 'egreso')
+    depositos = sum(m.monto for m in movimientos if m.tipo == 'egreso' and (m.categoria or '') == 'deposito_caja')
+    # Cálculo de saldo a entregar:
+    # Cobrador: (ingresos cobrados + ingresos otros) - comisión cobrador - egresos.
+    # Vendedor: (ingresos cobrados) - comisión vendedor (no se cuentan ingresos_otros porque normalmente no registra otros ingresos).
+    if puesto == 'vendedor':
+        saldo_esperado_entregar = ingresos_cobrados - comision_ganada - egresos
+    else:
+        saldo_esperado_entregar = ingresos_cobrados + ingresos_otros - comision_ganada - egresos
+
+    # Actualizar cierre con totales al vuelo
+    cierre.ingresos_cobrados = ingresos_cobrados
+    cierre.comision_ganada = comision_ganada
+    cierre.ingresos_otros = ingresos_otros
+    cierre.egresos = egresos
+    cierre.depositos = depositos
+    cierre.saldo_esperado_entregar = saldo_esperado_entregar
+    db.commit()
+    db.refresh(cierre)
+    return cierre
+
+
+def cerrar_dia_empleado(db: Session, fecha: date, empleado_id: int, entregado: float) -> CajaEmpleadoCierre:
+    cierre = calcular_resumen_empleado(db, fecha, empleado_id)
+    if cierre.cerrado:
+        raise ValueError("El día ya está cerrado para este empleado")
+    cierre.entregado = entregado
+    cierre.diferencia = (entregado or 0.0) - cierre.saldo_esperado_entregar
+    cierre.cerrado = True
+    db.commit()
+    db.refresh(cierre)
+    return cierre
+
+
+def abrir_dia_empleado(db: Session, fecha: date, empleado_id: int) -> CajaEmpleadoCierre:
+    cierre = get_or_create_cierre_empleado(db, fecha, empleado_id)
+    cierre.cerrado = False
+    cierre.entregado = None
+    cierre.diferencia = None
+    db.commit()
+    db.refresh(cierre)
+    return cierre

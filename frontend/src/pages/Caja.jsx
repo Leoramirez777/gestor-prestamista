@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchCierreCaja, fetchMovimientosCaja, crearMovimientoCaja, cerrarDia, abrirDia } from '../api/caja';
+import { fetchCierreCaja, fetchMovimientosCaja, crearMovimientoCaja, cerrarDia, abrirDia, fetchCajaEmpleadoResumen, crearMovimientoCajaEmpleado, cerrarDiaEmpleado, abrirDiaEmpleado, fetchMovimientosCajaEmpleado } from '../api/caja';
+import { fetchPagos, fetchPagoVendedor } from '../api/pagos';
 import formatCurrency from '../utils/formatCurrency';
 import useSettingsStore from '../stores/useSettingsStore';
 
@@ -22,6 +23,12 @@ function Caja() {
   const [error, setError] = useState(null);
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [filtroCategoria, setFiltroCategoria] = useState('todas');
+  const role = typeof window !== 'undefined' ? (localStorage.getItem('role') || 'admin') : 'admin';
+  const [empleadoResumen, setEmpleadoResumen] = useState(null);
+  const [movimientosEmpleado, setMovimientosEmpleado] = useState([]);
+  const [depForm, setDepForm] = useState({ monto: '', descripcion: '' });
+  const [pagosVendedorHoy, setPagosVendedorHoy] = useState([]); // solo para rol vendedor
+  const [comisionesVendedorMap, setComisionesVendedorMap] = useState({});
   const categoriasDisponibles = React.useMemo(() => {
     const set = new Set();
     movimientos.forEach(m => { if (m.categoria) set.add(m.categoria); });
@@ -29,8 +36,12 @@ function Caja() {
   }, [movimientos]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [fecha]);
+    if (role === 'admin') {
+      cargarDatos();
+    } else {
+      cargarDatosEmpleado();
+    }
+  }, [fecha, role]);
 
   const cargarDatos = async () => {
     try {
@@ -41,6 +52,43 @@ function Caja() {
       ]);
       setCierre(c);
       setMovimientos(movs || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarDatosEmpleado = async () => {
+    try {
+      setLoading(true);
+      const [resumen, movs] = await Promise.all([
+        fetchCajaEmpleadoResumen(fecha),
+        fetchMovimientosCajaEmpleado(fecha)
+      ]);
+      setEmpleadoResumen(resumen);
+      setMovimientosEmpleado(movs || []);
+      // Si es vendedor, cargar también pagos del día (la API ya filtra por sus préstamos)
+      if (role === 'vendedor') {
+        const pagos = await fetchPagos();
+        const hoy = fecha;
+        const pagosHoy = (pagos || []).filter(p => (p.fecha_pago || '').startsWith(hoy));
+        setPagosVendedorHoy(pagosHoy);
+        // Cargar comisiones individuales del vendedor por pago
+        const map = {};
+        for (const p of pagosHoy) {
+          try {
+            const reg = await fetchPagoVendedor(p.id);
+            if (reg && typeof reg.monto_comision === 'number') {
+              map[p.id] = reg.monto_comision;
+            }
+          } catch (_) { /* ignorar */ }
+        }
+        setComisionesVendedorMap(map);
+      } else {
+        setPagosVendedorHoy([]);
+        setComisionesVendedorMap({});
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -96,6 +144,49 @@ function Caja() {
     }
   };
 
+  const handleEmpleadoDeposito = async (e) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      const monto = parseFloat(depForm.monto);
+      if (!monto || monto <= 0) return;
+      const nuevo = await crearMovimientoCajaEmpleado({ fecha, tipo: 'egreso', monto, categoria: 'deposito_caja', descripcion: depForm.descripcion || 'Depósito a caja' });
+      setDepForm({ monto: '', descripcion: '' });
+      // Actualización optimista: agregar movimiento y recalcular depositos sin esperar fetch
+      if (nuevo) {
+        setMovimientosEmpleado(prev => [...prev, nuevo]);
+        // Forzar recarga del resumen para totales correctos
+        const resumen = await fetchCajaEmpleadoResumen(fecha);
+        setEmpleadoResumen(resumen);
+      } else {
+        await cargarDatosEmpleado();
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleEmpleadoCerrar = async () => {
+    try {
+      setError(null);
+      const entregado = empleadoResumen ? empleadoResumen.saldo_esperado_entregar : 0;
+      await cerrarDiaEmpleado(fecha, entregado);
+      await cargarDatosEmpleado();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const handleEmpleadoAbrir = async () => {
+    try {
+      setError(null);
+      await abrirDiaEmpleado(fecha);
+      await cargarDatosEmpleado();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
   return (
     <div className="container py-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
@@ -107,7 +198,147 @@ function Caja() {
       </div>
       {error && <div className="alert alert-danger">{error}</div>}
       {loading && <div className="alert alert-info">Cargando...</div>}
-      {cierre && !loading && (
+      {role !== 'admin' && empleadoResumen && !loading && (
+        <>
+          <div className="row g-3 mb-4">
+            <div className="col-md-3">
+              <div className="card shadow-sm border-0"><div className="card-body">
+                <h6 className="text-muted mb-1">Cobrado Hoy</h6>
+                <h5 className="fw-bold text-success mb-0">{formatCurrency(empleadoResumen.ingresos_cobrados || 0)}</h5>
+              </div></div>
+            </div>
+            <div className="col-md-3">
+              <div className="card shadow-sm border-0"><div className="card-body">
+                <h6 className="text-muted mb-1">Comisión Ganada</h6>
+                <h5 className="fw-bold text-primary mb-0">{formatCurrency(empleadoResumen.comision_ganada || 0)}</h5>
+              </div></div>
+            </div>
+            {role !== 'vendedor' && (
+              <div className="col-md-3">
+                <div className="card shadow-sm border-0"><div className="card-body">
+                  <h6 className="text-muted mb-1">Depósitos a Caja</h6>
+                  <h5 className="fw-bold text-secondary mb-0">{formatCurrency(empleadoResumen.depositos || 0)}</h5>
+                </div></div>
+              </div>
+            )}
+            <div className="col-md-3">
+              <div className="card shadow-sm border-0"><div className="card-body">
+                <h6 className="text-muted mb-1">A Entregar</h6>
+                <h5 className={`fw-bold mb-0 ${empleadoResumen.saldo_esperado_entregar >= 0 ? 'text-success':'text-danger'}`}>{formatCurrency(empleadoResumen.saldo_esperado_entregar || 0)}</h5>
+              </div></div>
+            </div>
+          </div>
+
+          <div className="row g-3 mb-4">
+            <div className="col-md-6">
+              <div className="card shadow-sm border-0"><div className="card-body">
+                <h6 className="text-muted mb-1">Estado</h6>
+                <span className={`badge ${empleadoResumen.cerrado ? 'bg-success':'bg-warning'}`}>{empleadoResumen.cerrado ? 'Cerrado':'Abierto'}</span>
+              </div></div>
+            </div>
+            <div className="col-md-6">
+              <div className="card shadow-sm border-0"><div className="card-body">
+                <h6 className="text-muted mb-1">Rendición</h6>
+                <div>Entregado: {empleadoResumen.entregado != null ? formatCurrency(empleadoResumen.entregado) : '-'} {empleadoResumen.diferencia != null && (<span className="ms-3">Diferencia: {formatCurrency(empleadoResumen.diferencia)}</span>)}</div>
+              </div></div>
+            </div>
+          </div>
+
+          {role !== 'vendedor' && (
+          <div className="card shadow-sm border-0 mb-4"><div className="card-body">
+            <h5 className="fw-bold mb-3"><i className="fas fa-hand-holding-usd me-2"></i>Registrar Depósito a Caja</h5>
+            <form className="row g-3" onSubmit={handleEmpleadoDeposito}>
+              <div className="col-md-3"><label className="form-label">Monto</label><input type="number" step="0.01" className="form-control" value={depForm.monto} onChange={e=>setDepForm({...depForm, monto:e.target.value})} disabled={empleadoResumen.cerrado} required /></div>
+              <div className="col-md-6"><label className="form-label">Descripción</label><input type="text" className="form-control" value={depForm.descripcion} onChange={e=>setDepForm({...depForm, descripcion:e.target.value})} disabled={empleadoResumen.cerrado} placeholder="Entrega en oficina" /></div>
+              <div className="col-md-3 d-flex align-items-end"><button className="btn btn-primary w-100" disabled={empleadoResumen.cerrado}><i className="fas fa-plus me-2"></i>Registrar</button></div>
+            </form>
+          </div></div>
+          )}
+          {role === 'vendedor' && (
+            <div className="card shadow-sm border-0 mt-4">
+              <div className="card-body">
+                <h5 className="fw-bold mb-3"><i className="fas fa-receipt me-2"></i>Pagos del Día</h5>
+                {pagosVendedorHoy.length === 0 ? (
+                  <p className="text-muted mb-0">No hay pagos registrados hoy en tus préstamos.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table table-sm align-middle">
+                      <thead>
+                        <tr>
+                          <th>ID Pago</th>
+                          <th>Préstamo</th>
+                          <th>Monto Pago</th>
+                          <th>Comisión Generada</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagosVendedorHoy.map(p => {
+                          const com = comisionesVendedorMap[p.id];
+                          return (
+                            <tr key={p.id}>
+                              <td>{p.id}</td>
+                              <td>{p.prestamo_id}</td>
+                              <td>{formatCurrency(p.monto)}</td>
+                              <td>{com !== undefined ? formatCurrency(com) : '-'}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="d-flex justify-content-end mb-3">
+            {!empleadoResumen.cerrado ? (
+              <button className="btn btn-warning btn-lg" onClick={handleEmpleadoCerrar}><i className="fas fa-file-invoice-dollar me-2"></i>Rendir Día</button>
+            ) : (
+              <button className="btn btn-success btn-lg" onClick={handleEmpleadoAbrir}><i className="fas fa-unlock me-2"></i>Reabrir Rendición</button>
+            )}
+          </div>
+
+          {/* Movimientos del empleado: ocultar para vendedor */}
+          {role !== 'vendedor' && (
+            <div className="card shadow-sm border-0">
+              <div className="card-body">
+                <h5 className="fw-bold mb-3"><i className="fas fa-list me-2"></i>Movimientos del Día</h5>
+                {movimientosEmpleado.length === 0 ? (
+                  <p className="text-muted mb-0">No registraste movimientos todavía.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table table-sm align-middle">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Tipo</th>
+                          <th>Monto</th>
+                          <th>Categoría</th>
+                          <th>Descripción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {movimientosEmpleado.map(m => (
+                          <tr key={m.id}>
+                            <td>{m.id}</td>
+                            <td><span className={`badge ${m.tipo === 'ingreso' ? 'bg-success':'bg-danger'}`}>{m.tipo}</span></td>
+                            <td>{formatCurrency(m.monto)}</td>
+                            <td>{m.categoria || '-'}</td>
+                            <td>{m.descripcion || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {role === 'admin' && cierre && !loading && (
         <>
           {/* Resumen principal del día */}
           <div className="row g-3 mb-4">
@@ -178,7 +409,8 @@ function Caja() {
         </>
       )}
 
-      {/* Form nuevo movimiento */}
+      {/* Form nuevo movimiento (solo admin) */}
+      {role === 'admin' && (
       <div className="card shadow-sm border-0 mb-4">
         <div className="card-body">
           <h5 className="fw-bold mb-3"><i className="fas fa-plus me-2"></i>Nuevo Movimiento</h5>
@@ -208,8 +440,10 @@ function Caja() {
           </form>
         </div>
       </div>
+      )}
 
-      {/* Lista de movimientos */}
+      {/* Lista de movimientos (solo admin) */}
+      {role === 'admin' && (
       <div className="card shadow-sm border-0">
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
@@ -270,6 +504,7 @@ function Caja() {
           )}
         </div>
       </div>
+      )}
 
       {/* Modal Cerrar Día */}
       {showCerrarModal && (

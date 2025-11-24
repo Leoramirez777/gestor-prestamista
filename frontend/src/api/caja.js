@@ -46,3 +46,49 @@ export async function abrirDia(fecha) {
     handleApiError(err);
   }
 }
+
+// ===== Caja Empleado =====
+export async function fetchCajaEmpleadoResumen(fecha) {
+  try {
+    const { data } = await api.get('/api/caja/empleado/resumen', { params: { fecha } });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function crearMovimientoCajaEmpleado({ fecha, tipo, monto, categoria, descripcion }) {
+  try {
+    const { data } = await api.post('/api/caja/empleado/movimientos', { fecha, tipo, monto, categoria, descripcion });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function fetchMovimientosCajaEmpleado(fecha) {
+  try {
+    const { data } = await api.get('/api/caja/empleado/movimientos', { params: { fecha } });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function cerrarDiaEmpleado(fecha, entregado) {
+  try {
+    const { data } = await api.post('/api/caja/empleado/cerrar-dia', { fecha, entregado });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}
+
+export async function abrirDiaEmpleado(fecha) {
+  try {
+    const { data } = await api.post('/api/caja/empleado/abrir-dia', { fecha });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

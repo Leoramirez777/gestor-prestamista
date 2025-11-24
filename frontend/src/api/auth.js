@@ -1,26 +1,25 @@
-import axios from 'axios';
+import { api } from './client';
 
-const API_URL = 'http://localhost:8000/api/auth';
+const AUTH_BASE = '/api/auth';
 
 export const login = async (username, password) => {
-  const formData = new FormData();
-  formData.append('username', username);
-  formData.append('password', password);
-  
-  const response = await axios.post(`${API_URL}/login`, formData);
-  
+  // OAuth2PasswordRequestForm requiere application/x-www-form-urlencoded
+  const body = new URLSearchParams({ username, password });
+  const response = await api.post(`${AUTH_BASE}/login`, body, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  });
   if (response.data.access_token) {
     localStorage.setItem('token', response.data.access_token);
     localStorage.setItem('username', response.data.username);
     if (response.data.role) localStorage.setItem('role', response.data.role);
     if (response.data.empleado_id !== undefined) localStorage.setItem('empleado_id', String(response.data.empleado_id ?? ''));
   }
-  
   return response.data;
 };
 
 export const register = async (username, password, nombre_completo) => {
-  const response = await axios.post(`${API_URL}/register`, {
+  // Nota: si no existe endpoint de registro público, esto fallará.
+  const response = await api.post(`${AUTH_BASE}/register`, {
     username,
     password,
     nombre_completo
@@ -39,9 +38,7 @@ export const getCurrentUser = async () => {
   const token = localStorage.getItem('token');
   if (!token) return null;
   try {
-    const response = await axios.get(`${API_URL}/me`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+    const response = await api.get(`${AUTH_BASE}/me`);
     if (response.data?.role) localStorage.setItem('role', response.data.role);
     if (response.data?.empleado_id !== undefined) localStorage.setItem('empleado_id', String(response.data.empleado_id ?? ''));
     return response.data;
