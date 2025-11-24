@@ -319,7 +319,7 @@ function Resumen() {
           { label: "Capital en Riesgo", desc: "Monto del capital que aún no ha sido recuperado de los préstamos activos." },
           { label: "Tiempo Promedio Recuperación", desc: "Cantidad promedio de días que tardas en recuperar completamente un préstamo." },
           { label: "Total Recaudado", desc: "Suma de todos los pagos recibidos de los clientes." },
-          { label: "Ganancias Brutas", desc: "Total recaudado (igual que Total Recaudado, representa los ingresos antes de comisiones)." },
+          { label: "Ganancias Brutas", desc: "Intereses cobrados antes de comisiones (Total recaudado menos capital recuperado)." },
           { label: "Intereses Generados", desc: "Total de intereses pactados en todos los préstamos (sin mora)." },
           { label: "Intereses Pendientes", desc: "Intereses que aún faltan por cobrar de los préstamos activos." },
           { label: "Eficiencia de Cobro", desc: "Porcentaje de lo que has cobrado vs lo que deberías cobrar (capital + intereses). Fórmula: (Total Recaudado / Monto Total Esperado) × 100." },

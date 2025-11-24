@@ -493,13 +493,23 @@ def get_rentabilidad(db: Session) -> dict:
     comisiones_cobrador = db.query(func.coalesce(func.sum(PagoCobrador.monto_comision), 0)).scalar() or 0.0
     total_comisiones = comisiones_vendedor + comisiones_cobrador
     
-    # Ganancias netas (recaudado menos comisiones pagadas)
-    ganancias_netas = total_recaudado - total_comisiones
-    
-    # Ganancias brutas (recaudado total, antes de descontar comisiones)
-    ganancias_brutas = total_recaudado
-    
-    # ROI (Return on Investment)
+    # Capital en riesgo (prestado pero aún no cobrado completamente)
+    prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
+    capital_en_riesgo = sum(float(p.monto) for p in prestamos_activos)  # type: ignore[arg-type]
+
+    # Capital recuperado = capital invertido que ya volvió
+    capital_recuperado = capital_invertido - capital_en_riesgo
+
+    # Intereses cobrados = lo recaudado menos el capital recuperado
+    intereses_cobrados = max(total_recaudado - capital_recuperado, 0.0)
+
+    # Ganancias brutas = intereses cobrados (antes de comisiones)
+    ganancias_brutas = intereses_cobrados
+
+    # Ganancias netas = intereses cobrados - comisiones
+    ganancias_netas = intereses_cobrados - total_comisiones
+
+    # ROI (Return on Investment) = utilidad neta / capital invertido
     roi = (ganancias_netas / capital_invertido) if capital_invertido > 0 else 0.0
     
     # Margen de ganancia
@@ -508,9 +518,7 @@ def get_rentabilidad(db: Session) -> dict:
     # Saldo pendiente por cobrar
     por_cobrar = db.query(func.coalesce(func.sum(Prestamo.saldo_pendiente), 0)).scalar() or 0.0
     
-    # Capital en riesgo (prestado pero aún no cobrado completamente)
-    prestamos_activos = db.query(Prestamo).filter(Prestamo.saldo_pendiente > 0).all()
-    capital_en_riesgo = sum(float(p.monto) for p in prestamos_activos)  # type: ignore[arg-type]
+    # Nota: capital_en_riesgo ya calculado arriba
     
     # Calcular total esperado e intereses generados
     todos_prestamos = db.query(Prestamo).all()
@@ -549,7 +557,7 @@ def get_rentabilidad(db: Session) -> dict:
     ratio_comisiones = (total_comisiones / ganancias_brutas) if ganancias_brutas > 0 else 0.0
     
     # 7. Capital Recuperado (parte del capital que ya volvió)
-    capital_recuperado = capital_invertido - capital_en_riesgo
+    # ya calculado arriba
     
     # 8. Intereses Pendientes (intereses que aún esperamos cobrar)
     intereses_pendientes = por_cobrar - capital_en_riesgo if por_cobrar > capital_en_riesgo else 0.0
