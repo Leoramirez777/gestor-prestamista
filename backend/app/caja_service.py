@@ -449,12 +449,12 @@ def calcular_resumen_empleado(db: Session, fecha: date, empleado_id: int) -> Caj
     egresos = sum(m.monto for m in movimientos if m.tipo == 'egreso')
     depositos = sum(m.monto for m in movimientos if m.tipo == 'egreso' and (m.categoria or '') == 'deposito_caja')
     # Cálculo de saldo a entregar:
-    # Cobrador: (ingresos cobrados + ingresos otros) - comisión cobrador - egresos.
-    # Vendedor: (ingresos cobrados) - comisión vendedor (no se cuentan ingresos_otros porque normalmente no registra otros ingresos).
+    # Vendedor: ingresos cobrados - comisión vendedor - egresos.
+    # Cobrador: ingresos cobrados - egresos (la comisión ya está en egresos).
     if puesto == 'vendedor':
         saldo_esperado_entregar = ingresos_cobrados - comision_ganada - egresos
     else:
-        saldo_esperado_entregar = ingresos_cobrados + ingresos_otros - comision_ganada - egresos
+        saldo_esperado_entregar = ingresos_cobrados - egresos
 
     # Actualizar cierre con totales al vuelo
     cierre.ingresos_cobrados = ingresos_cobrados

@@ -4,7 +4,7 @@ from typing import List
 from datetime import date
 from app.database.database import get_db
 from app.models.models import Pago, Prestamo, PagoCobrador, PagoVendedor, PrestamoVendedor, Empleado, MovimientoCaja, Cliente, Usuario
-from app.schemas.schemas import Pago as PagoSchema, PagoCreate, PagoCobrador as PagoCobradorSchema, PagoVendedor as PagoVendedorSchema
+from app.schemas.schemas import Pago as PagoSchema, PagoCreate, PagoCobrador as PagoCobradorSchema, PagoVendedor as PagoVendedorSchema, AprobarPagoCobrador
 from app.caja_service import actualizar_totales_cierre, get_or_create_cierre
 from app.models.models import CajaEmpleadoMovimiento
 from app.routers.auth import get_current_user
@@ -36,29 +36,44 @@ def get_pagos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), cu
             pagos = db.query(Pago).offset(skip).limit(limit).all()
             return pagos
         
-        # Si es vendedor o cobrador, solo ve pagos de préstamos donde está asignado
+        # Para empleados sin ID asignado
         if not current_user.empleado_id:
             return []
         
-        # Importar PrestamoVendedor
-        from app.models.models import PrestamoVendedor
+        # Si es vendedor: pagos de sus préstamos (con PrestamoVendedor)
+        if current_user.role == 'vendedor':
+            prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(
+                PrestamoVendedor.empleado_id == current_user.empleado_id
+            ).distinct().all()
+            
+            if not prestamos_ids:
+                return []
+            
+            prestamo_ids_list = [p[0] for p in prestamos_ids]
+            pagos = db.query(Pago).filter(
+                Pago.prestamo_id.in_(prestamo_ids_list)
+            ).offset(skip).limit(limit).all()
+            return pagos
         
-        # Obtener IDs de préstamos donde el usuario está asignado
-        prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(
-            PrestamoVendedor.empleado_id == current_user.empleado_id
-        ).distinct().all()
+        # Si es cobrador: solo sus pagos (registros en PagoCobrador)
+        if current_user.role == 'cobrador':
+            # Obtener IDs de pagos donde el cobrador está registrado
+            pagos_ids = db.query(PagoCobrador.pago_id).filter(
+                PagoCobrador.empleado_id == current_user.empleado_id
+            ).distinct().all()
+            
+            if not pagos_ids:
+                return []
+            
+            pago_ids_list = [p[0] for p in pagos_ids]
+            pagos = db.query(Pago).filter(
+                Pago.id.in_(pago_ids_list)
+            ).offset(skip).limit(limit).all()
+            return pagos
         
-        if not prestamos_ids:
-            return []
+        # Rol no reconocido
+        return []
         
-        prestamo_ids_list = [p[0] for p in prestamos_ids]
-        
-        # Filtrar pagos de esos préstamos
-        pagos = db.query(Pago).filter(
-            Pago.prestamo_id.in_(prestamo_ids_list)
-        ).offset(skip).limit(limit).all()
-        
-        return pagos
     except Exception as e:
         print(f"Error en get_pagos: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -107,9 +122,10 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db), current_user: U
     cobrador_id = pago_data.pop('cobrador_id', None)
     cobrador_nombre = pago_data.pop('cobrador_nombre', None)
     porcentaje_cobrador = pago_data.pop('porcentaje_cobrador', None)
-    # Si el usuario autenticado es cobrador y no se especificó cobrador_id, asignarlo automáticamente
-    if not cobrador_id and getattr(current_user, 'role', None) == 'cobrador' and current_user.empleado_id:
+    # Si el usuario autenticado es cobrador, ignorar porcentaje enviado y marcar pendiente
+    if getattr(current_user, 'role', None) == 'cobrador' and current_user.empleado_id:
         cobrador_id = current_user.empleado_id
+        porcentaje_cobrador = None  # se aprobará luego por admin
     
     # Bloquear si el día está cerrado
     cierre_hoy = get_or_create_cierre(db, pago_data['fecha_pago'])
@@ -221,21 +237,19 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db), current_user: U
     # Actualizar totales del cierre del día
     actualizar_totales_cierre(db, db_pago.fecha_pago)
 
-    # Crear registro de comisión del cobrador si corresponde
-    if porcentaje_cobrador is not None:
-        if porcentaje_cobrador < 0 or porcentaje_cobrador > 100:
-            raise HTTPException(status_code=400, detail="El porcentaje del cobrador debe estar entre 0 y 100")
-    if cobrador_id and porcentaje_cobrador and float(porcentaje_cobrador) > 0:
-        porcentaje = float(porcentaje_cobrador)
-        monto_comision = round(float(pago.monto) * porcentaje / 100.0, 2)
-
-        empleado_nombre_final = None
-        if cobrador_id:
-            empleado = db.query(Empleado).filter(Empleado.id == cobrador_id).first()
-            empleado_nombre_final = empleado.nombre if empleado else cobrador_nombre
+    # Crear registro de comisión del cobrador si corresponde (admin asigna inmediata) o placeholder (cobrador pendiente)
+    if cobrador_id:
+        empleado = db.query(Empleado).filter(Empleado.id == cobrador_id).first()
+        empleado_nombre_final = empleado.nombre if empleado else (cobrador_nombre or 'Cobrador')
+        if porcentaje_cobrador is not None and getattr(current_user, 'role', None) == 'admin':
+            if porcentaje_cobrador < 0 or porcentaje_cobrador > 100:
+                raise HTTPException(status_code=400, detail="El porcentaje del cobrador debe estar entre 0 y 100")
+            porcentaje = float(porcentaje_cobrador)
+            monto_comision = round(float(pago.monto) * porcentaje / 100.0, 2)
         else:
-            empleado_nombre_final = cobrador_nombre
-
+            # pendiente aprobación
+            porcentaje = 0.0
+            monto_comision = 0.0
         registro = PagoCobrador(
             pago_id=db_pago.id,
             empleado_id=cobrador_id,
@@ -245,21 +259,19 @@ def create_pago(pago: PagoCreate, db: Session = Depends(get_db), current_user: U
         )
         db.add(registro)
         db.commit()
-        # Registrar movimiento de caja como egreso por comisión de cobrador
-        mov_comision_cobrador = MovimientoCaja(
-            fecha=db_pago.fecha_pago,
-            tipo="egreso",
-            categoria="comision",
-            descripcion=f"Comisión cobrador pago #{db_pago.id} préstamo {db_pago.prestamo_id}",
-            monto=monto_comision,
-            referencia_tipo="pago",
-            referencia_id=db_pago.id,
-            usuario_id=None
-        )
-        db.add(mov_comision_cobrador)
-        db.commit()
-        # Movimiento empleado (egreso comisión) para reflejar retención
-        if cobrador_id:
+        if monto_comision > 0:
+            mov_comision_cobrador = MovimientoCaja(
+                fecha=db_pago.fecha_pago,
+                tipo="egreso",
+                categoria="comision",
+                descripcion=f"Comisión cobrador pago #{db_pago.id} préstamo {db_pago.prestamo_id}",
+                monto=monto_comision,
+                referencia_tipo="pago",
+                referencia_id=db_pago.id,
+                usuario_id=None
+            )
+            db.add(mov_comision_cobrador)
+            db.commit()
             existe_emp_com = db.query(CajaEmpleadoMovimiento).filter(
                 CajaEmpleadoMovimiento.empleado_id == cobrador_id,
                 CajaEmpleadoMovimiento.referencia_tipo == 'pago',
@@ -324,6 +336,63 @@ def get_pago_cobrador(pago_id: int, db: Session = Depends(get_db)):
     registro = db.query(PagoCobrador).filter(PagoCobrador.pago_id == pago_id).first()
     if not registro:
         raise HTTPException(status_code=404, detail="No hay comisión registrada para este pago")
+    return registro
+
+@router.put("/{pago_id}/aprobar-cobrador", response_model=PagoCobradorSchema)
+def aprobar_comision_cobrador(pago_id: int, datos: AprobarPagoCobrador, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+    """Aprueba comisión pendiente de cobrador. Solo admin."""
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Solo admin puede aprobar comisión de cobrador")
+    pago = db.query(Pago).filter(Pago.id == pago_id).first()
+    if not pago:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    registro = db.query(PagoCobrador).filter(PagoCobrador.pago_id == pago_id).first()
+    if not registro:
+        raise HTTPException(status_code=404, detail="Registro cobrador pendiente no encontrado")
+    if registro.monto_comision and registro.monto_comision > 0:
+        raise HTTPException(status_code=400, detail="La comisión ya fue aprobada")
+    porcentaje = datos.porcentaje
+    if porcentaje < 0 or porcentaje > 100:
+        raise HTTPException(status_code=400, detail="Porcentaje inválido (0-100)")
+    empleado_id = datos.empleado_id or registro.empleado_id
+    if not empleado_id:
+        raise HTTPException(status_code=400, detail="Debe especificar empleado cobrador")
+    empleado = db.query(Empleado).filter(Empleado.id == empleado_id).first()
+    if not empleado:
+        raise HTTPException(status_code=404, detail="Empleado cobrador no encontrado")
+    monto_comision = round(float(pago.monto) * porcentaje / 100.0, 2)
+    registro.empleado_id = empleado.id
+    registro.empleado_nombre = empleado.nombre
+    registro.porcentaje = porcentaje
+    registro.monto_comision = monto_comision
+    db.commit()
+    db.refresh(registro)
+    # Movimientos al aprobar
+    mov_comision_cobrador = MovimientoCaja(
+        fecha=pago.fecha_pago,
+        tipo="egreso",
+        categoria="comision",
+        descripcion=f"Comisión cobrador aprobada pago #{pago.id} préstamo {pago.prestamo_id}",
+        monto=monto_comision,
+        referencia_tipo="pago",
+        referencia_id=pago.id,
+        usuario_id=None
+    )
+    db.add(mov_comision_cobrador)
+    db.commit()
+    mov_emp_com = CajaEmpleadoMovimiento(
+        fecha=pago.fecha_pago,
+        empleado_id=empleado.id,
+        tipo='egreso',
+        categoria='comision',
+        descripcion=f"Comisión cobrador aprobada pago #{pago.id}",
+        monto=monto_comision,
+        referencia_tipo='pago',
+        referencia_id=pago.id
+    )
+    db.add(mov_emp_com)
+    db.commit()
+    actualizar_totales_cierre(db, pago.fecha_pago)
     return registro
 
 

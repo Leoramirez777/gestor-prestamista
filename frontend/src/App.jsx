@@ -95,35 +95,16 @@ function App({ onLogout }) {
       // Actividad reciente (últimos 5 items)
       // Primero ordenar pagos por ID descendente (más reciente primero)
       const pagosOrdenados = [...pagos].sort((a, b) => b.id - a.id);
-      const prestamosOrdenados = [...prestamos].sort((a, b) => b.id - a.id);
       
-      const actividadReciente = [
-        ...pagosOrdenados.slice(0, 3).map(p => ({
-          tipo: 'pago',
-          descripcion: `Pago de ${formatCurrency(p.monto)} recibido`,
-          fecha: p.fecha_pago,
-          id: p.id,
-          timestamp: p.created_at || p.fecha_pago,
-          icono: '💵',
-          color: 'success'
-        })),
-        ...prestamosOrdenados.slice(0, 2).map(p => ({
-          tipo: 'prestamo',
-          descripcion: `Préstamo de ${formatCurrency(p.monto)} creado`,
-          fecha: p.created_at || p.fecha_inicio,
-          id: p.id,
-          timestamp: p.created_at || p.fecha_inicio,
-          icono: '💰',
-          color: 'primary'
-        }))
-      ].sort((a, b) => {
-        // Ordenar por timestamp descendente (más reciente primero)
-        const timeA = new Date(a.timestamp).getTime();
-        const timeB = new Date(b.timestamp).getTime();
-        if (timeB !== timeA) return timeB - timeA;
-        // Si tienen el mismo timestamp, ordenar por ID descendente
-        return b.id - a.id;
-      }).slice(0, 5);
+      const actividadReciente = pagosOrdenados.slice(0, 5).map(p => ({
+        tipo: 'pago',
+        descripcion: `Pago de ${formatCurrency(p.monto)} recibido`,
+        fecha: p.fecha_pago,
+        id: p.id,
+        timestamp: p.created_at || p.fecha_pago,
+        icono: '💵',
+        color: 'success'
+      }));
 
       setRecentActivity(actividadReciente);
 
@@ -234,9 +215,10 @@ function App({ onLogout }) {
       mi.title.includes('Resumen')
     ));
   } else if (role === 'cobrador') {
-    // solo pagos y resumen
+    // pagos, caja y resumen
     menuItems = menuItems.filter(mi => (
       mi.title.includes('Pagos') ||
+      mi.title.includes('Caja') ||
       mi.title.includes('Resumen')
     ));
   } // admin ve todo

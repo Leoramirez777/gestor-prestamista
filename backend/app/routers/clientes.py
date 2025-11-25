@@ -18,32 +18,27 @@ def get_clientes(skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
             return clientes
         
         # Si es vendedor o cobrador, solo ve clientes con préstamos donde está asignado
+        from app.models.models import PrestamoVendedor
+        if current_user.role == 'cobrador':
+            # Clientes de préstamos sin vendedor (préstamos administrados por admin)
+            vendedores_subq = db.query(PrestamoVendedor.prestamo_id).distinct().subquery()
+            clientes_ids = db.query(Prestamo.cliente_id).filter(~Prestamo.id.in_(vendedores_subq)).distinct().all()
+            cliente_ids_list = [c[0] for c in clientes_ids]
+            if not cliente_ids_list:
+                return []
+            clientes = db.query(Cliente).filter(Cliente.id.in_(cliente_ids_list)).offset(skip).limit(limit).all()
+            return clientes
+        # Vendedor: clientes de sus préstamos
         if not current_user.empleado_id:
             return []
-        
-        # Importar PrestamoVendedor
-        from app.models.models import PrestamoVendedor
-        
-        # Obtener IDs de préstamos donde el usuario está asignado como vendedor
-        prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(
-            PrestamoVendedor.empleado_id == current_user.empleado_id
-        ).distinct().all()
-        
+        prestamos_ids = db.query(PrestamoVendedor.prestamo_id).filter(PrestamoVendedor.empleado_id == current_user.empleado_id).distinct().all()
         if not prestamos_ids:
             return []
-        
         prestamo_ids_list = [p[0] for p in prestamos_ids]
-        
-        # Obtener clientes de esos préstamos
-        clientes_ids = db.query(Prestamo.cliente_id).filter(
-            Prestamo.id.in_(prestamo_ids_list)
-        ).distinct().all()
-        
+        clientes_ids = db.query(Prestamo.cliente_id).filter(Prestamo.id.in_(prestamo_ids_list)).distinct().all()
         cliente_ids_list = [c[0] for c in clientes_ids]
-        
         if not cliente_ids_list:
             return []
-        
         clientes = db.query(Cliente).filter(Cliente.id.in_(cliente_ids_list)).offset(skip).limit(limit).all()
         return clientes
     except Exception as e:

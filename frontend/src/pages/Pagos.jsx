@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { fetchPagos, createPago, previewPagoCobrador } from '../api/pagos';
+import { fetchPagos, createPago, previewPagoCobrador, aprobarPagoCobrador } from '../api/pagos';
 import { fetchPrestamos } from '../api/prestamos';
 import { fetchClientes } from '../api/clientes';
 import { fetchEmpleados } from '../api/empleados';
@@ -49,6 +49,8 @@ export default function Pagos() {
     tipoPago: 'todos' // 'todos', 'cuota', 'parcial', 'total'
   });
   const [cobradoresMap, setCobradoresMap] = useState({});
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [approveState, setApproveState] = useState({ pago: null, empleadoId: '', porcentaje: '', preview: null, error: null, busy: false });
 
   useEffect(() => {
     const loadData = async () => {
@@ -68,6 +70,13 @@ export default function Pagos() {
           empleadosData = await fetchEmpleados();
         }
         
+        console.log('📦 Datos cargados:', { 
+          pagos: pagosData?.length || 0, 
+          prestamos: prestamosData?.length || 0, 
+          clientes: clientesData?.length || 0,
+          empleados: empleadosData?.length || 0
+        });
+        
         setPagos(pagosData || []);
         setPrestamos(prestamosData || []);
         setClientes(clientesData || []);
@@ -76,8 +85,7 @@ export default function Pagos() {
         // Cargar información de cobradores para cada pago
         await loadCobradoresInfo(pagosData || []);
         
-        console.log('Préstamos cargados:', prestamosData);
-        console.log('Location state:', location.state);
+        console.log('✅ Estado actualizado - Pagos:', pagosData?.length || 0);
         
         // Si viene con parámetro nuevo=true en la URL, abrir modal
         const searchParams = new URLSearchParams(location.search);
@@ -174,22 +182,30 @@ export default function Pagos() {
     for (const pago of pagosList) {
       try {
         const res = await fetch(`/api/pagos/${pago.id}/cobrador`);
+        // Solo procesamos si hay un registro válido (200 OK)
+        // 404 significa que no hay cobrador para este pago, lo cual es normal
         if (res.ok) {
           const registro = await res.json();
           if (registro?.empleado_id) {
             cobradoresData[pago.id] = {
               id: registro.empleado_id,
-              nombre: registro.empleado_nombre || 'Cobrador'
+              nombre: registro.empleado_nombre || 'Cobrador',
+              porcentaje: registro.porcentaje,
+              monto_comision: registro.monto_comision
             };
           } else if (registro?.empleado_nombre) {
             cobradoresData[pago.id] = {
               id: null,
-              nombre: registro.empleado_nombre
+              nombre: registro.empleado_nombre,
+              porcentaje: registro.porcentaje,
+              monto_comision: registro.monto_comision
             };
           }
         }
+        // Si res.status === 404, simplemente no añadimos nada al map (pago sin cobrador)
       } catch (err) {
-        // No hay cobrador para este pago
+        // Error de red u otro - no hay cobrador para este pago
+        console.debug(`Sin cobrador para pago ${pago.id}`);
       }
     }
     setCobradoresMap(cobradoresData);
@@ -360,6 +376,11 @@ export default function Pagos() {
 
   // Filtrar pagos según los filtros aplicados
   const pagosFiltrados = pagos.filter(pago => {
+    // Debug: log first pago filtering
+    if (pago.id === pagos[0]?.id) {
+      console.log('🔍 Filtrando pagos. Total:', pagos.length, 'Filtros:', filtros);
+    }
+    
     // Filtro por cobrador
     if (filtros.cobrador !== 'todos') {
       const tieneCobrador = cobradoresMap[pago.id];
@@ -694,15 +715,32 @@ export default function Pagos() {
                             {role === 'vendedor' ? (
                               <span className="text-muted">-</span>
                             ) : cobradoresMap[pago.id] ? (
-                              <span className="badge" style={{ backgroundColor: '#ffc107', color: '#000' }}>
-                                {cobradoresMap[pago.id].nombre}
-                              </span>
+                              <>
+                                <span className="badge" style={{ backgroundColor: '#ffc107', color: '#000' }}>
+                                  {cobradoresMap[pago.id].nombre}
+                                </span>
+                                {Number(cobradoresMap[pago.id].monto_comision || 0) === 0 && (
+                                  <small className="text-muted ms-2">(pendiente)</small>
+                                )}
+                              </>
                             ) : (
                               <span className="text-muted">No</span>
                             )}
                         </td>
                         <td>
                           <div className="btn-group">
+                            {role === 'admin' && cobradoresMap[pago.id] && (Number(cobradoresMap[pago.id].monto_comision || 0) === 0) && (
+                              <button
+                                className="btn btn-sm btn-outline-primary me-2"
+                                onClick={() => {
+                                  const info = cobradoresMap[pago.id];
+                                  setApproveState({ pago, empleadoId: info.id || '', porcentaje: '', preview: null, error: null, busy: false });
+                                  setApproveOpen(true);
+                                }}
+                              >
+                                Aprobar Comisión
+                              </button>
+                            )}
                             <button
                               className="btn btn-sm"
                               style={{ backgroundColor: '#ffc107', color: '#000', border: 'none' }}
@@ -712,7 +750,6 @@ export default function Pagos() {
                                 try {
                                   // Determinar receptor: primero cobrador (si existe), luego admin
                                   let receptor = null;
-
                                   // Intentar obtener comisión del cobrador (si hay registro se asume que él recibió el pago)
                                   try {
                                     const res = await fetch(`/api/pagos/${pago.id}/cobrador`);
@@ -765,6 +802,87 @@ export default function Pagos() {
         </div>
       )}
 
+      {/* Modal aprobación comisión cobrador (Admin) */}
+      {approveOpen && (
+        <>
+          <div className="modal-backdrop fade show" onClick={() => setApproveOpen(false)}></div>
+          <div className="modal fade show d-block" tabIndex="-1" style={{ zIndex: 1050 }}>
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Aprobar Comisión del Cobrador</h5>
+                  <button type="button" className="btn-close" onClick={() => setApproveOpen(false)}></button>
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label">Pago</label>
+                    <div className="alert alert-light border mb-0">
+                      #{approveState.pago?.id} — Monto: <strong>{formatCurrency(approveState.pago?.monto || 0)}</strong>
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Cobrador</label>
+                    <select className="form-select" value={approveState.empleadoId || ''} onChange={(e)=>setApproveState(prev=>({...prev, empleadoId: e.target.value}))}>
+                      <option value="">Seleccionar...</option>
+                      {empleados.map(emp=> (
+                        <option key={emp.id} value={emp.id}>{emp.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Porcentaje sobre el pago</label>
+                    <div className="input-group">
+                      <input type="number" className="form-control" min="0" max="100" step="0.01" value={approveState.porcentaje}
+                        onChange={async (e)=>{
+                          const porcentaje = e.target.value;
+                          let preview = null;
+                          try {
+                            if (porcentaje && Number(porcentaje) > 0) {
+                              const res = await previewPagoCobrador({ monto: approveState.pago?.monto || 0, porcentaje: Number(porcentaje) });
+                              preview = res?.monto_comision ?? null;
+                            }
+                          } catch {}
+                          setApproveState(prev=>({...prev, porcentaje, preview}));
+                        }} />
+                      <span className="input-group-text">%</span>
+                    </div>
+                    {approveState.preview != null && (
+                      <div className="alert alert-info mt-2 mb-0">
+                        A entregar al empleado: <strong>{formatCurrency(approveState.preview)}</strong>
+                      </div>
+                    )}
+                  </div>
+                  {approveState.error && (
+                    <div className="alert alert-danger py-2">{approveState.error}</div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={()=>setApproveOpen(false)}>Cancelar</button>
+                  <button type="button" className="btn btn-primary" disabled={approveState.busy}
+                    onClick={async ()=>{
+                      try{
+                        setApproveState(prev=>({...prev, busy:true, error:null}));
+                        if(!approveState.empleadoId) throw new Error('Seleccione el cobrador');
+                        const porcentaje = parseFloat(approveState.porcentaje || '0');
+                        if(!(porcentaje>0)) throw new Error('Ingrese un porcentaje válido');
+                        await aprobarPagoCobrador(approveState.pago.id, { porcentaje, empleado_id: parseInt(approveState.empleadoId) });
+                        // refrescar info
+                        await loadCobradoresInfo(pagos);
+                        setApproveOpen(false);
+                      }catch(err){
+                        setApproveState(prev=>({...prev, busy:false, error: (err?.response?.data?.detail || err.message || 'Error al aprobar')}));
+                        return;
+                      }
+                      setApproveState(prev=>({...prev, busy:false}));
+                    }}
+                  >Aprobar</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Modal para registrar pago */}
       {showModal && (
         <>
@@ -803,7 +921,7 @@ export default function Pagos() {
                         
                         return (
                           <option key={prestamo.id} value={prestamo.id}>
-                            Préstamo #{prestamo.id} - {cliente?.nombre || 'Sin cliente'} - Saldo: {formatCurrency(prestamo.saldo_pendiente)}
+                            Préstamo #{prestamo.id} - {cliente?.nombre || 'Cliente desconocido'} - Saldo: {formatCurrency(prestamo.saldo_pendiente)}
                           </option>
                         );
                       })}
@@ -916,22 +1034,29 @@ export default function Pagos() {
                     </select>
                   </div>
 
-                  {/* Cobrador */}
-                  <div className="mb-3">
-                    <label className="form-label">Cobrador</label>
-                    <div className="form-check form-switch">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="cobrador_switch"
-                        checked={cobradorHabilitado}
-                        onChange={(e) => setCobradorHabilitado(e.target.checked)}
-                      />
-                      <label className="form-check-label" htmlFor="cobrador_switch">
-                        {cobradorHabilitado ? 'Sí' : 'No'}
-                      </label>
+                  {/* Cobrador: ocultar selección completa si el rol es cobrador (aprobación posterior por admin) */}
+                  {role !== 'cobrador' && (
+                    <div className="mb-3">
+                      <label className="form-label">Cobrador</label>
+                      <div className="form-check form-switch">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="cobrador_switch"
+                          checked={cobradorHabilitado}
+                          onChange={(e) => setCobradorHabilitado(e.target.checked)}
+                        />
+                        <label className="form-check-label" htmlFor="cobrador_switch">
+                          {cobradorHabilitado ? 'Sí' : 'No'}
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  {role === 'cobrador' && (
+                    <div className="alert alert-warning mb-3">
+                      <small>Registrarás el pago sin comisión. Un administrador aprobará y asignará tu comisión posteriormente.</small>
+                    </div>
+                  )}
 
                   {/* Información del vendedor si existe */}
                   {vendedorPrestamo && (
@@ -957,7 +1082,7 @@ export default function Pagos() {
                     </div>
                   )}
 
-                  {cobradorHabilitado && (
+                  {cobradorHabilitado && role !== 'cobrador' && (
                     <>
                       <div className="mb-3">
                         <label className="form-label">Seleccionar Cobrador</label>

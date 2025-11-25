@@ -7,7 +7,9 @@ import useSettingsStore from '../stores/useSettingsStore';
 
 function Caja() {
   const navigate = useNavigate();
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Obtener fecha local sin problemas de zona horaria
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const [fecha, setFecha] = useState(todayStr);
   const [cierre, setCierre] = useState(null);
   const [movimientos, setMovimientos] = useState([]);

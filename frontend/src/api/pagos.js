@@ -63,3 +63,22 @@ export async function fetchPagoVendedor(id) {
     handleApiError(err);
   }
 }
+
+export async function fetchPagoCobrador(id) {
+  try {
+    const { data } = await api.get(`/api/pagos/${id}/cobrador`);
+    return data; // PagoCobrador registro
+  } catch (err) {
+    // 404: sin registro
+    return null;
+  }
+}
+
+export async function aprobarPagoCobrador(id, { porcentaje, empleado_id }) {
+  try {
+    const { data } = await api.put(`/api/pagos/${id}/aprobar-cobrador`, { porcentaje, empleado_id });
+    return data;
+  } catch (err) {
+    handleApiError(err);
+  }
+}

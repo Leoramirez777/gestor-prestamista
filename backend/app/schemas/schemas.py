@@ -183,6 +183,11 @@ class PagoVendedor(BaseModel):
     class Config:
         from_attributes = True
 
+# ===== APROBACIÓN COMISIÓN COBRADOR =====
+class AprobarPagoCobrador(BaseModel):
+    porcentaje: float  # porcentaje sobre el monto del pago
+    empleado_id: Optional[int] = None  # permitir ajustar cobrador si fuera necesario
+
 
 # ===== METRICAS =====
 class SummaryMetrics(BaseModel):
